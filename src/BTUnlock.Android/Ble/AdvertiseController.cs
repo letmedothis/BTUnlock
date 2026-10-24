@@ -93,7 +93,8 @@ public sealed class AdvertiseController
         var deviceId = DeviceIdentity.GetOrCreate(Application.Context);
         var data = new AdvertiseData.Builder()
             .AddServiceUuid(new ParcelUuid(UUID.FromString(ProtocolConstants.ServiceUuid.ToString())!))
-            .AddManufacturerData(ProtocolConstants.ManufacturerCompanyId, new AdvertPayload(deviceId).ToBytes())
+            .AddManufacturerData(ProtocolConstants.ManufacturerCompanyId,
+                new AdvertPayload(deviceId, Flags: 0).ToBytes())
             .Build();
 
         advertiser.StartAdvertising(settings, data, _callback);
