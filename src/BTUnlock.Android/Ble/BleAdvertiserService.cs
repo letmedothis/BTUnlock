@@ -60,7 +60,7 @@ public sealed class BleAdvertiserService : Service
 
         if (Build.VERSION.SdkInt >= BuildVersionCodes.Q)
             StartForeground(NotificationId, notification,
-                (int)global::Android.Content.PM.ForegroundService.TypeConnectedDevice);
+                global::Android.Content.PM.ForegroundService.TypeConnectedDevice);
         else
             StartForeground(NotificationId, notification);
 

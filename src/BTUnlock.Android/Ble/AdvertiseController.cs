@@ -85,8 +85,8 @@ public sealed class AdvertiseController
         };
 
         var settings = new AdvertiseSettings.Builder()
-            .SetAdvertiseMode(AdvertiseSettings.AdvertiseModeBalanced) // ~250ms 间隔，响应与功耗的折中
-            .SetTxPowerLevel(AdvertiseSettings.TxPowerHigh)
+            .SetAdvertiseMode(AdvertiseMode.Balanced) // ~250ms 间隔，响应与功耗的折中
+            .SetTxPowerLevel(AdvertiseTx.PowerHigh)
             .SetConnectable(false)
             .Build();
 
