@@ -56,7 +56,7 @@ BTUnlock/
 
 流水线细节见 [docs/06-ci-release.md](docs/06-ci-release.md)。
 
-### 方式二：本地构建
+### 方式二：本地构建（可选；当前约定全靠 CI，本机未装 SDK）
 
 #### 手机端（小米/红米）
 

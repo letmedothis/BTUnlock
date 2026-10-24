@@ -2,23 +2,23 @@
 
 ## 环境要求
 
-本机**只需要**装 .NET 8 SDK（PC 端开发调试用）。安卓端不装任何本地工具链，
-编译验证全部走 CI——push 后在 Actions 下载 APK，这是本项目约定的工作方式。
+本机**不装任何 .NET SDK 也可以**：两端构建全部走 GitHub Actions，安装包从
+Releases 下载即可（PC 端为自包含单文件，免运行时）。下表仅当需要本地调试时才相关。
 
 | 组件 | 版本 | 用途 |
 |---|---|---|
-| .NET SDK | 8.0.x | PC 端与 Protocol（本机已装） |
-| Android workload | 不装 | 安卓端只在 CI 构建（CI 用 .NET 10 SDK + android workload）；仅当需要本地断点调试安卓时才装（数 GB，慎装） |
+| .NET SDK | 8.0.x | 本地构建 PC 端（可选；当前约定全靠 CI，本机未装） |
+| Android 工具链 | — | 本地构建安卓端（可选；需 .NET 10 SDK + android workload，数 GB） |
 | Android 设备 | API 26+（Android 8.0+） | 小米/红米需开发者模式 + USB 安装 |
 | Windows | 10 19041+ / 11，带蓝牙适配器 | PC 端 |
 
 > 安卓 workload 体积数 GB（JDK + Android SDK），只调 PC 端可不装——解决方案里
 > Android 项目不会被 `dotnet build src/BTUnlock.Desktop` 触发。
 
-## 构建
+## 构建（可选，全靠 CI 时不需要）
 
 ```bash
-# PC 端（依赖 Protocol，自动级联）
+# PC 端（依赖 Protocol，自动级联；需本机 .NET 8 SDK）
 dotnet build src/BTUnlock.Desktop -c Release
 
 # 安卓端：默认不在本地构建，push 后从 Actions/Releases 下载 APK（推荐）
