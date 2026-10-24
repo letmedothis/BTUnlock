@@ -45,7 +45,7 @@ STDMETHODIMP BTUnlockCredential::GetFieldState(DWORD field, CREDENTIAL_PROVIDER_
     CREDENTIAL_PROVIDER_FIELD_INTERACTIVE_STATE* pcpfis)
 {
     if (!pcpfs || !pcpfis) return E_POINTER;
-    *pcpfs = (field == FIELD_LABEL) ? CPFS_DISPLAY_IN_TILE : CPFS_HIDDEN;
+    *pcpfs = (field == FIELD_LABEL) ? CPFS_DISPLAY_IN_BOTH : CPFS_HIDDEN;
     *pcpfis = CPFIS_NONE;
     return S_OK;
 }
