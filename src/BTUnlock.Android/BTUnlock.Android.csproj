@@ -17,4 +17,15 @@
     <ProjectReference Include="..\BTUnlock.Protocol\BTUnlock.Protocol.csproj" />
   </ItemGroup>
 
+  <!-- 固定签名：CI 每次运行生成的调试密钥都不同，会导致新 APK 无法覆盖安装且设备 ID 丢失。
+       私有仓库自用场景下提交固定密钥（密码明文）是可接受的折中；严禁用于公开仓库或 Play 上架。
+       换密钥 = 所有用户必须卸载重装。 -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <AndroidKeyStore>true</AndroidKeyStore>
+    <AndroidSigningKeyStore>keystore\btunlock.keystore</AndroidSigningKeyStore>
+    <AndroidSigningKeyAlias>btunlock</AndroidSigningKeyAlias>
+    <AndroidSigningStorePass>btunlock2026</AndroidSigningStorePass>
+    <AndroidSigningKeyPass>btunlock2026</AndroidSigningKeyPass>
+  </PropertyGroup>
+
 </Project>

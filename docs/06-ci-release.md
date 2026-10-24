@@ -43,14 +43,13 @@ tag 到本次 tag 之间的全部提交记录**（含 PR 链接、贡献者）�
 
 ## 安卓签名说明
 
-CI 用默认调试密钥签名 APK（可正常安装使用）。换正式密钥时：
+APK 用**仓库内固定密钥**签名（`src/BTUnlock.Android/keystore/btunlock.keystore`，
+Release 配置见 csproj）。这是为了让 CI 产物可以覆盖安装、设备 ID 不因重装丢失——
+否则 CI 每次运行生成的临时调试密钥都不同，每次升级都要卸载重装。
 
-1. 在仓库 Settings → Secrets 添加 `ANDROID_KEYSTORE`（base64）、
-   `ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD`；
-2. 在 build-android 任务里解码 keystore 并加
-   `-p:AndroidKeyStore=true -p:AndroidSigningKeyStore=...` 参数。
-
-换密钥后必须先卸载旧包再安装（签名不一致）。设置页同步更新此说明。
+代价与红线：私有仓库自用场景下密钥入库（含明文密码）是可接受的折中；
+**严禁**把该密钥用到公开仓库或 Play 上架（等于交出签名身份）。换密钥 =
+所有已装用户必须卸载重装并重新绑定。
 
 ## 重跑与幂等
 

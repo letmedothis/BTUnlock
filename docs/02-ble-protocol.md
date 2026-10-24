@@ -9,8 +9,11 @@
 | 广播类型 | 非连接广播（non-connectable） | PC 只扫描不连接，手机无需维持 GATT |
 | 广播间隔 | AdvertiseModeBalanced ≈ 250ms | 响应速度与功耗折中；解锁延迟 ≈ 驻留时间 + 2~3 帧 |
 | Tx 功率 | High | 拉远有效距离，让「离开」判定更早触发 |
-| Service UUID | `4254554E-4C4F-434B-8E2D-C50F3F1A0001` | 前 8 位十六进制即 ASCII "BTUNLOCK" |
 | Manufacturer Company ID | `0xFFFF` | 蓝牙 SIG 测试保留值，自用项目不注册正式 ID |
+
+**广播内容只含 Manufacturer Data（16 字节）**。传统 BLE 广播包上限 31 字节，
+放不下 128 位 Service UUID（单独占 18 字节）——设备识别完全依赖 CompanyId +
+负载魔数，`ProtocolConstants.ServiceUuid` 仅作为保留常量，不进入广播。
 
 ## Manufacturer Data 负载（12 字节，大端）
 

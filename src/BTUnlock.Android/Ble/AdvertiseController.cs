@@ -5,7 +5,6 @@ using Android.Content;
 using Android.OS;
 using BTUnlock.Android.Prefs;
 using BTUnlock.Protocol;
-using Java.Util;
 
 namespace BTUnlock.Android.Ble;
 
@@ -91,8 +90,9 @@ public sealed class AdvertiseController
             .Build();
 
         var deviceId = DeviceIdentity.GetOrCreate(Application.Context);
+        // 传统广播包上限 31 字节：只放 Manufacturer Data（2 公司ID + 12 负载 + 2 头 = 16 字节）。
+        // 不放 128 位 Service UUID（单独占 18 字节必超限）；PC 端仅按 CompanyId+魔数识别。
         var data = new AdvertiseData.Builder()
-            .AddServiceUuid(new ParcelUuid(UUID.FromString(ProtocolConstants.ServiceUuid.ToString())!))
             .AddManufacturerData(ProtocolConstants.ManufacturerCompanyId,
                 new AdvertPayload(deviceId, Flags: 0).ToBytes())
             .Build();
