@@ -3,6 +3,7 @@
 // 总开关：HKLM\SOFTWARE\BTUnlock\UnlockProviderEnabled (DWORD) —— 置 0 立即失效
 #include "Common.h"
 #include "Provider.h"
+#include <olectl.h>
 #include <new>
 
 static HINSTANCE g_hModule = nullptr;

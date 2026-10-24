@@ -16,17 +16,17 @@ public:
     STDMETHODIMP_(ULONG) Release() override;
 
     // ICredentialProvider
-    STDMETHODIMP SetUsageScenario(DWORD cpus, DWORD) override;
+    STDMETHODIMP SetUsageScenario(CREDENTIAL_PROVIDER_USAGE_SCENARIO cpus, DWORD) override;
     STDMETHODIMP SetSerialization(const CREDENTIAL_PROVIDER_CREDENTIAL_SERIALIZATION*) override { return E_NOTIMPL; }
     STDMETHODIMP Advise(ICredentialProviderEvents* pcpe, UINT_PTR upAdviseContext) override;
     STDMETHODIMP UnAdvise() override;
     STDMETHODIMP GetFieldDescriptorCount(DWORD*) override;
     STDMETHODIMP GetFieldDescriptorAt(DWORD, CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR**) override;
-    STDMETHODIMP GetCredentialCount(DWORD*, DWORD*, BOOL*, CREDENTIAL_PROVIDER_GET_SERIALIZATION_RESPONSE*) override;
-    STDMETHODIMP GetCredential(DWORD, ICredentialProviderCredential**) override;
+    STDMETHODIMP GetCredentialCount(DWORD*, DWORD*, BOOL*) override;
+    STDMETHODIMP GetCredentialAt(DWORD, ICredentialProviderCredential**) override;
 
     // ICredentialProviderSetUserArray
-    STDMETHODIMP SetUserArray(IUserArray*) override;
+    STDMETHODIMP SetUserArray(ICredentialProviderUserArray*) override;
 
     const wchar_t* GetUserSid() const { return _sid.c_str(); }
 

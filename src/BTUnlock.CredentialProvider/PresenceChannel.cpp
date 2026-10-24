@@ -89,8 +89,8 @@ bool QueryPresence(DWORD timeoutMs, PresenceInfo& out)
     if (resp[0] != 'P' || resp[1] != ';') return false;
 
     char user[128] = {}, domain[128] = {}, b64[512] = {};
-    if (sscanf_s(resp + 2, "%127[^;];%127[^;];%511[^\n]", user, (rsize_t)sizeof(user),
-        domain, (rsize_t)sizeof(domain), b64, (rsize_t)sizeof(b64)) != 3)
+    if (sscanf_s(resp + 2, "%127[^;];%127[^;];%511[^\n]", user, (unsigned)sizeof(user),
+        domain, (unsigned)sizeof(domain), b64, (unsigned)sizeof(b64)) != 3)
         return false;
 
     std::string pwBytes = Base64Decode(b64, strlen(b64));

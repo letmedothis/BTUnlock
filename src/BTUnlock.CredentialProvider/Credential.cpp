@@ -45,7 +45,7 @@ STDMETHODIMP BTUnlockCredential::GetFieldState(DWORD field, CREDENTIAL_PROVIDER_
     CREDENTIAL_PROVIDER_FIELD_INTERACTIVE_STATE* pcpfis)
 {
     if (!pcpfs || !pcpfis) return E_POINTER;
-    *pcpfs = (field == FIELD_LABEL) ? CPFS_DISPLAY_FIELDDATA : CPFS_HIDDEN;
+    *pcpfs = (field == FIELD_LABEL) ? CPFS_DISPLAY_IN_TILE : CPFS_HIDDEN;
     *pcpfis = CPFIS_NONE;
     return S_OK;
 }
@@ -58,6 +58,13 @@ STDMETHODIMP BTUnlockCredential::GetStringValue(DWORD field, LPWSTR* ppsz)
     *ppsz = (LPWSTR)CoTaskMemAlloc(bytes);
     if (!*ppsz) return E_OUTOFMEMORY;
     memcpy(*ppsz, text, bytes);
+    return S_OK;
+}
+
+STDMETHODIMP BTUnlockCredential::ReportResult(NTSTATUS, NTSTATUS, LPWSTR* ppszStatus, CREDENTIAL_PROVIDER_STATUS_ICON* pcpsi)
+{
+    if (ppszStatus) *ppszStatus = nullptr;
+    if (pcpsi) *pcpsi = CPSI_NONE;
     return S_OK;
 }
 
@@ -106,7 +113,7 @@ static HRESULT BuildUnlockBlob(const wchar_t* domain, const wchar_t* user, const
     put(domain, dLen, &kil->Logon.LogonDomainName);
     put(user, uLen, &kil->Logon.UserName);
     put(password, pLen, &kil->Logon.Password);
-    kil->LogonId.QuadPart = 0;
+    // LogonId 已被 ZeroMemory 清零
 
     *ppBlob = kil;
     *pcbBlob = total;
@@ -157,7 +164,7 @@ STDMETHODIMP BTUnlockCredential::GetSerialization(CREDENTIAL_PROVIDER_GET_SERIAL
     {
         pcpcs->clsidCredentialProvider = __uuidof(BTUnlockProvider);
         pcpcs->ulAuthenticationPackage = authPackage;
-        pcpcs->pbSerialization = (PBYTE)blob;
+        pcpcs->rgbSerialization = (PBYTE)blob;
         pcpcs->cbSerialization = cbBlob;
         *pcpgsr = CPGSR_RETURN_CREDENTIAL_FINISHED;
         CpLog(L"GetSerialization: submitting credential (user=%s)", info.User.c_str());

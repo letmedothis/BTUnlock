@@ -34,7 +34,7 @@ STDMETHODIMP_(ULONG) BTUnlockProvider::Release()
 }
 
 // 只响应解锁场景；登录/UAC/改密等一律 E_NOTIMPL 让系统跳过本提供程序。
-STDMETHODIMP BTUnlockProvider::SetUsageScenario(DWORD cpus, DWORD)
+STDMETHODIMP BTUnlockProvider::SetUsageScenario(CREDENTIAL_PROVIDER_USAGE_SCENARIO cpus, DWORD)
 {
     _cpus = cpus;
     CpLog(L"SetUsageScenario: %lu", cpus);
@@ -70,12 +70,13 @@ STDMETHODIMP BTUnlockProvider::GetFieldDescriptorAt(DWORD index, CREDENTIAL_PROV
     if (!ppcpfd || index != 0) return E_INVALIDARG;
     const wchar_t* label = L"手机在场";
     size_t bytes = (wcslen(label) + 1) * sizeof(wchar_t);
-    auto fd = (CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR*)CoTaskMemAlloc(sizeof(*fd) + bytes);
+    CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR* fd =
+        (CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR*)CoTaskMemAlloc(sizeof(CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR) + bytes);
     if (!fd) return E_OUTOFMEMORY;
-    ZeroMemory(fd, sizeof(*fd));
+    ZeroMemory(fd, sizeof(CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR));
     fd->cpft = CPFT_LARGE_TEXT;
     fd->guidFieldType = GUID_NULL;
-    fd->pszLabel = (LPWSTR)((PBYTE)fd + sizeof(*fd));
+    fd->pszLabel = (LPWSTR)((PBYTE)fd + sizeof(CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR));
     memcpy(fd->pszLabel, label, bytes);
     *ppcpfd = fd;
     return S_OK;
@@ -91,10 +92,9 @@ bool BTUnlockProvider::IsEnabledByRegistry() const
     return v == 1;
 }
 
-STDMETHODIMP BTUnlockProvider::GetCredentialCount(DWORD* pdwCount, DWORD* pdwDefault,
-    BOOL* pbAutoLogon, CREDENTIAL_PROVIDER_GET_SERIALIZATION_RESPONSE* pcpgsrDefault)
+STDMETHODIMP BTUnlockProvider::GetCredentialCount(DWORD* pdwCount, DWORD* pdwDefault, BOOL* pbAutoLogon)
 {
-    if (!pdwCount || !pdwDefault || !pbAutoLogon || !pcpgsrDefault) return E_POINTER;
+    if (!pdwCount || !pdwDefault || !pbAutoLogon) return E_POINTER;
 
     bool offer = _cpus == CPUS_UNLOCK_WORKSTATION && IsEnabledByRegistry() && _present;
     if (offer)
@@ -103,20 +103,18 @@ STDMETHODIMP BTUnlockProvider::GetCredentialCount(DWORD* pdwCount, DWORD* pdwDef
         *pdwCount = 1;
         *pdwDefault = 0;
         *pbAutoLogon = TRUE; // 关键：LogonUI 立即对默认 tile 调 GetSerialization，实现无感解锁
-        *pcpgsrDefault = CPGSR_NO_CREDENTIAL_NOT_FINISHED;
     }
     else
     {
         *pdwCount = 0;
         *pdwDefault = CREDENTIAL_PROVIDER_NO_DEFAULT;
         *pbAutoLogon = FALSE;
-        *pcpgsrDefault = CPGSR_NO_CREDENTIAL_NOT_FINISHED;
     }
-    CpLog(L"GetCredentialCount: offer=%d present=%d enabled", offer ? 1 : 0, _present ? 1 : 0);
+    CpLog(L"GetCredentialCount: offer=%d present=%d", offer ? 1 : 0, _present ? 1 : 0);
     return S_OK;
 }
 
-STDMETHODIMP BTUnlockProvider::GetCredential(DWORD index, ICredentialProviderCredential** ppcpc)
+STDMETHODIMP BTUnlockProvider::GetCredentialAt(DWORD index, ICredentialProviderCredential** ppcpc)
 {
     if (!ppcpc || index != 0) return E_INVALIDARG;
     if (!_credential) _credential = new BTUnlockCredential(this);
@@ -126,13 +124,13 @@ STDMETHODIMP BTUnlockProvider::GetCredential(DWORD index, ICredentialProviderCre
 }
 
 // Win8+ 锁屏界面把被锁定用户传进来（通常 1 个）。取第一个的 SID 供序列化分组。
-STDMETHODIMP BTUnlockProvider::SetUserArray(IUserArray* users)
+STDMETHODIMP BTUnlockProvider::SetUserArray(ICredentialProviderUserArray* users)
 {
     _sid.clear();
     DWORD count = 0;
     if (users && SUCCEEDED(users->GetCount(&count)) && count > 0)
     {
-        IUser* user = nullptr;
+        ICredentialProviderUser* user = nullptr;
         if (SUCCEEDED(users->GetAt(0, &user)) && user)
         {
             LPWSTR sid = nullptr;
