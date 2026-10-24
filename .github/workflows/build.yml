@@ -90,9 +90,65 @@ jobs:
             BTUnlock-Android-*.apk.sha256
           if-no-files-found: error
 
+  build-cp:
+    name: 构建解锁凭据提供程序（C++ x64）
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: 编译（静态 CRT，LogonUI 环境零依赖）
+        shell: cmd
+        run: |
+          mkdir obj
+          cl /nologo /std:c++17 /EHsc /MT /O2 /DUNICODE /D_UNICODE /W3 /LD ^
+            src\BTUnlock.CredentialProvider\dllmain.cpp ^
+            src\BTUnlock.CredentialProvider\Provider.cpp ^
+            src\BTUnlock.CredentialProvider\Credential.cpp ^
+            src\BTUnlock.CredentialProvider\PresenceChannel.cpp ^
+            src\BTUnlock.CredentialProvider\Log.cpp ^
+            /Fe:BTUnlock.CredentialProvider.dll /Fo:obj\ ^
+            /link /DEF:src\BTUnlock.CredentialProvider\exports.def ole32.lib advapi32.lib secur32.lib
+
+      - name: 打包（DLL + 安装/卸载脚本 + 说明）
+        shell: pwsh
+        run: |
+          $v = "0.1.$env:GITHUB_RUN_NUMBER"
+          $dir = "cp-pkg"
+          New-Item -ItemType Directory -Path $dir | Out-Null
+          Copy-Item BTUnlock.CredentialProvider.dll $dir
+          Copy-Item tools/install-cp.ps1 $dir
+          Copy-Item tools/uninstall-cp.ps1 $dir
+          @'
+          BTUnlock 人来解锁组件（实验性）
+          ==================================
+          安装：右键 install-cp.ps1 →「使用 PowerShell 运行」（需管理员）
+          卸载：以管理员运行 uninstall-cp.ps1
+          前置：PC 端主程序已运行、已绑定手机、已在主界面录入 Windows 密码并勾选启用。
+          紧急停用（不卸载）：管理员运行
+            reg add HKLM\SOFTWARE\BTUnlock /v UnlockProviderEnabled /t REG_DWORD /d 0 /f
+          日志：C:\ProgramData\BTUnlock\cp.log
+          详见仓库 docs/04-unlock-credential-provider.md（安全须知必读）。
+          '@ | Out-File "$dir/README.txt" -Encoding utf8
+          Compress-Archive -Path "$dir/*" -DestinationPath "BTUnlock-UnlockProvider-win-x64-v$v.zip"
+          Get-FileHash "BTUnlock-UnlockProvider-win-x64-v$v.zip" -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash)  BTUnlock-UnlockProvider-win-x64-v$v.zip" } |
+            Set-Content -NoNewline "BTUnlock-UnlockProvider-win-x64-v$v.zip.sha256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BTUnlock-UnlockProvider-win-x64
+          path: |
+            BTUnlock-UnlockProvider-win-x64-*.zip
+            BTUnlock-UnlockProvider-win-x64-*.zip.sha256
+          if-no-files-found: error
+
   release:
     name: 发布 Release（仅 main 分支）
-    needs: [build-pc, build-android]
+    needs: [build-pc, build-android, build-cp]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:

@@ -86,9 +86,10 @@ BTUnlock/
 - [x] **M1 手机端**：BLE 广播前台服务 + 小米保活引导 + 看门狗自愈
 - [x] **M2 PC 端**：扫描 / RSSI 迟滞判定 / 自动锁屏 / 托盘常驻 / 开机自启
 - [x] **图标**：统一挂锁视觉——PC exe/窗口/托盘 + Android 自适应启动图标/通知剪影（`tools/generate-icons.ps1` 可再生）
-- [ ] **M3 人来解锁**：Windows Credential Provider + 命名管道在场状态
-      （方案已定稿：[docs/04-unlock-credential-provider.md](docs/04-unlock-credential-provider.md)）
-- [ ] **M4 打磨**：阈值校准向导、全屏/下载防误锁、正式图标
+- [x] **M3 人来解锁（实验性）**：C++ Credential Provider + 命名管道在场状态 + 机器级 DPAPI 密码录入
+      （安装与安全须知：[docs/04-unlock-credential-provider.md](docs/04-unlock-credential-provider.md)）
+- [ ] **M3.1 安全升级**：BLE 滚动令牌，防广播克隆重放
+- [ ] **M4 打磨**：阈值校准向导、全屏/下载防误锁
 
 ## 文档索引
 

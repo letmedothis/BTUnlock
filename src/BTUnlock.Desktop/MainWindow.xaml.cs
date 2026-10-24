@@ -67,6 +67,8 @@ public partial class MainWindow : Window
             ? $"{AdvertPayload.ToFullId(id)}（配对码 {AdvertPayload.ToPairingCode(id)}）"
             : "（未绑定）";
 
+        UnlockStatusText.Text = Core.CredentialStore.Exists() ? "状态：已录入密码" : "状态：未录入密码";
+
         var previous = SeenList.SelectedItem as string;
         var seen = App.Scanner.SnapshotSeen();
         _seenIds = seen.Select(o => o.DeviceId).ToList();
@@ -87,6 +89,7 @@ public partial class MainWindow : Window
         TbMissing.Text = s.MissingTimeoutSeconds.ToString();
         AutoLockCheckBox.IsChecked = s.EnableAutoLock;
         AutoStartCheckBox.IsChecked = Core.AutoStart.IsEnabled();
+        CbUnlock.IsChecked = s.EnableUnlock;
         RefreshStatus();
     }
 
@@ -164,6 +167,19 @@ public partial class MainWindow : Window
     }
 
     private void LockNowButton_Click(object sender, RoutedEventArgs e) => WorkStationLocker.TryLock();
+
+    private void CbUnlock_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_suppressEvents) return;
+        App.Settings.EnableUnlock = CbUnlock.IsChecked == true;
+        App.SaveSettings();
+    }
+
+    private void BtnEnroll_Click(object sender, RoutedEventArgs e)
+    {
+        new EnrollWindow { Owner = this }.ShowDialog();
+        RefreshStatus();
+    }
 
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
     {

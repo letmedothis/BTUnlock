@@ -15,6 +15,7 @@ public partial class App : Application
     private readonly SettingsStore _settingsStore = new();
     private BleScanner _scanner = null!;
     private ProximityDetector _detector = null!;
+    private UnlockPipeServer _unlockServer = null!;
     private DispatcherTimer? _refreshTimer;
     private Forms.NotifyIcon? _trayIcon;
     private bool _exiting;
@@ -50,6 +51,21 @@ public partial class App : Application
         _scanner.AdvertReceived += OnAdvertReceived;
         _detector.StateChanged += OnPresenceChanged;
         _scanner.Start();
+
+        // M3：解锁状态管道，供 LogonUI 里的凭据提供程序查询
+        _unlockServer = new UnlockPipeServer(
+            () => Settings.EnableUnlock &&
+                  Core.CredentialStore.TryLoad() is not null &&
+                  _detector.State == PresenceState.Present,
+            () =>
+            {
+                var enrolled = Core.CredentialStore.TryLoad();
+                if (enrolled is null) return null;
+                var password = Core.CredentialStore.TryGetPassword(enrolled);
+                if (password is null) return null;
+                return $"{enrolled.User};{enrolled.Domain};{Convert.ToBase64String(System.Text.Encoding.Unicode.GetBytes(password))}";
+            });
+        _unlockServer.Start();
 
         _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _refreshTimer.Tick += (_, _) => OnSecondElapsed();
@@ -149,8 +165,9 @@ public partial class App : Application
     public void ExitApp()
     {
         _exiting = true;
+        _unlockServer?.Dispose();
         _trayIcon?.Dispose();
-        _scanner?.Dispose();
+        _scanner.Dispose();
         Shutdown();
     }
 

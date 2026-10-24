@@ -17,6 +17,7 @@ public sealed class AppSettings
     public int MissingTimeoutSeconds { get; set; } = 12;
     public bool EnableAutoLock { get; set; } = true;
     public bool StartWithWindows { get; set; }
+    public bool EnableUnlock { get; set; }
 
     public ulong? DeviceId => AdvertPayload.TryParseFullId(DeviceIdHex, out var id) ? id : null;
 }

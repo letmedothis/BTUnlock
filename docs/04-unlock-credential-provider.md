@@ -1,66 +1,58 @@
-# 04 · 「人来解锁」技术方案（M3，未实现）
+# 04 · 「人来解锁」实现（M3，实验性）
 
-## 为什么锁屏容易、解锁难
-
-- 锁屏：`LockWorkStation()` 一个调用，任何普通权限程序都能做。
-- 解锁：Windows 出于安全设计，**没有公开 API** 解锁已锁定的会话。锁屏界面由
-  LogonUI（winlogon 进程）绘制，唯一正规扩展点是 **Credential Provider（CP）**
-  ——一组 COM 组件，登录/解锁界面上的每个登录方式（密码、PIN、指纹…）都是一个 CP。
-
-## 方案总览
+## 现状：已实现基础版（v0.1.x），实验性
 
 ```
-锁定画面出现时：
-LogonUI 进程 ──加载──▶ BTUnlockCredentialProvider (自研 COM DLL, C++)
-                          │ 枚举 UI 时判断：是否满足静默解锁条件
-                          ▼
-                    命名管道 \\.\pipe\btunlock\presence
-                          ▲ 查询"手机是否在场(最近N秒内RSSI达标)"
-                  BTUnlock.exe (托盘程序, 常驻, 写入状态)
-                          ▲
-                     BleScanner 判定 Present
+锁屏画面 (LogonUI, SYSTEM)
+   │ 加载 COM DLL BTUnlock.CredentialProvider.dll
+   ▼
+BTUnlockProvider ──1.2s 轮询──▶ \\.\pipe\btunlock\presence ──▶ BTUnlock.exe 主程序
+   │ 在场且启用：暴露 1 tile + AutoLogonWithDefault=TRUE            ▲
+   ▼                                  （检测器 Present + 已录入凭据 + 启用开关）
+GetSerialization：KERB_INTERACTIVE_UNLOCK_LOGON(域/用户/密码) + 协商认证包
+   ▼
+LSASS 校验通过 → 解锁
 ```
 
-1. 托盘程序判定 `Present`（含 M3 滚动令牌校验通过）→ 把「在场凭据」写入命名管道。
-2. 自研 CP 在解锁界面出现时读管道：在场 → 返回一个自动通过的身份凭据，
-   LogonUI 静默解锁；不在场 → 不出现，走正常密码/PIN。
-3. CP 与主程序用 `CoCreateInstance` 的标准 CLSID 注册（HKLM/HKCR 注册表）。
+组件与职责：
 
-## 安全模型（必须先想清楚再动手）
+| 组件 | 位置 | 职责 |
+|---|---|---|
+| `src/BTUnlock.CredentialProvider`（C++，CI 用 MSVC 命令行编译，静态 CRT 零依赖） | LogonUI 进程内 | 仅 `CPUS_UNLOCK_WORKSTATION` 场景响应；其余场景 E_NOTIMPL 完全不参与。手机在场→tile+自动提交；不在场→0 tile（锁屏界面与原生一致） |
+| `UnlockPipeServer`（C#，主程序内） | 用户会话 | 回答 `Q`：`A`（不可解锁）/ `P;user;domain;base64(密码)` |
+| `CredentialStore` + `MachineCrypto`（C#） | %ProgramData%\BTUnlock | 密码经机器级 DPAPI 加密落盘，文件 ACL 收敛为 SYSTEM/Admins/当前用户 |
 
-静态广播可被 30 米内任何人抓包克隆。解锁上线**必须**同时满足：
+## 安装 / 卸载 / 回退
 
-1. **仅解锁，不登录**：CP 的 `SetUsageScenario` 只响应
-   `CPUS_UNLOCK_WORKSTATION`，冷启动/首次登录永远要求密码或 PIN——
-   蓝牙钥匙丢了对号入座不了系统本体。
-2. **滚动令牌**：见 [02-ble-protocol.md](02-ble-protocol.md) M3 预留，
-   重放/中继旧帧无效。
-3. **双因子开关**（可选）：解锁仍需轻量配合（如手机弹窗确认 / Windows Hello
-   生物特征），由用户按敏感度自选。
+- 安装：下载 Release 的 `BTUnlock-UnlockProvider-win-x64-v*.zip`，管理员 PowerShell 运行 `install-cp.ps1`（复制 DLL 到 Program Files + regsvr32 注册 + 置启用开关）
+- 前置：主程序运行中、已绑定手机、主界面勾选「启用」并录入 Windows 密码
+- 卸载：`uninstall-cp.ps1`；**紧急停用**（不卸载）：
+  `reg add HKLM\SOFTWARE\BTUnlock /v UnlockProviderEnabled /t REG_DWORD /d 0 /f`
+  （CP 每次枚举都读该值，锁屏一次后生效）
+- 日志：`C:\ProgramData\BTUnlock\cp.log`（时间戳+线程号，GetSerialization/轮询全链路）
 
-威胁模型文档化结论：即便如此，物理接近 + 设备克隆仍是最强攻击面，文档与
-README 需向用户明示「便捷换安全」的取舍。
+## 安全模型（必读）
 
-## 实施步骤（建议顺序）
+1. **Windows 无官方解锁 API**。实现 = 凭据提供程序提交你的密码本体，因此必须录入一次。
+   密码经 `CRYPTPROTECT_LOCAL_MACHINE` DPAPI 加密——**本机任意 SYSTEM 上下文可解**。
+   若攻击者已能在本机执行任意代码，该边界实际不增加防护；但需明确：这不是安全增强功能，是便捷功能。
+2. **仅解锁，不登录**：登录/UAC/改密场景一律不参与（E_NOTIMPL）。冷启动仍需密码/PIN。
+3. 静态 BLE 广播可被抓包克隆（30m 内）→ 配合本组件 = 拿着克隆信号走近就能解锁。
+   M3.1 计划上滚动令牌（协议 Flags.bit0 已预留）缓解重放。缓解生效前请自行评估：
+   办公室等半公开环境建议不开本功能。
+4. 改 Windows 密码后需重新录入；微软在线账户（MSA）不保证可用（本地/域账户为验证路径）。
 
-1. C++ COM DLL：实现 `ICredentialProvider` / `ICredentialProviderCredential`
-   最小骨架（枚举一个隐藏 tile），先做到「注册后解锁画面不报错」。
-2. 命名管道：主程序写（DACL 限本机 SYSTEM+当前用户），CP 读；定义
-   `{state, lastSeenTs, tokenOk}` 简单 JSON/二进制帧。
-3. 静默解锁逻辑：tile 不落 UI 直接 `GetSerialization` 返回缓存的凭据
-   （配合 `CPGV_NO_UI` / 保存的凭据机制；密码如何安全托管是本步核心，
-   参考 pGina/multiOTP 的做法——凭据加密存 DPAPI，仅解锁场景可解）。
-4. 安装器：`regsvr32`/注册表写 CLSID + 卸载清理；签名（自签名也行，但需固定）。
+## 故障排查
 
-## 参考
+| 症状 | 排查 |
+|---|---|
+| 手机在场但不出 tile | cp.log 有无 "GetCredentialCount: offer=1"；注册表开关；主程序是否运行；管道是否有进程占用 |
+| tile 出现但解锁失败 | 密码错误（改密后未重录）→ 正常密码 tile 仍可用，登录后重新录入 |
+| 怀疑影响系统锁屏 | 紧急停用注册表命令 → 锁一次屏验证；仍异常则安全模式卸载（CP 随 Winlogon 栈加载，安全模式可删注册表） |
+| 想看主程序侧 | 管道协议 `Q\n` → `P;user;domain;b64\n`，可用 PowerShell 管道客户端自测 |
 
-- 开源 CP 实现可借鉴结构：[multiOTPCredentialProvider](https://github.com/multiOTP/multiOTPCredentialProvider)（C++，V2 CP）
-- pGina（C++ CP + 托管插件进程的架构分离思路）
-- 官方文档：Windows Credential Provider（learn.microsoft.com）
-- 微软官方「可信信号解锁」走 Windows Hello 企业版，个人机不可用，故自研。
+## 已知边界（后续版本）
 
-## 调试技巧（届时用）
-
-- CP 崩溃会黑屏锁死：虚拟机里先行；备好 PE/安全模式恢复注册表。
-- `GetSerialization` 全链路日志写 `C:\ProgramData\BTUnlock\cp.log`（LogonUI
-  会话下没有控制台）。
+- 单用户会话假设（多用户切换场景未验证）
+- `ICredentialProviderEvents` 直调（与微软动态 CP 示例一致，未做 GIT 封送）
+- 滚动令牌（M3.1）、错误密码自动降级提示（M3.2）

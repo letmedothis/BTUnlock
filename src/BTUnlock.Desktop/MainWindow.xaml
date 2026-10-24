@@ -83,6 +83,16 @@
                       Checked="AutoStartCheckBox_Changed" Unchecked="AutoStartCheckBox_Changed"/>
             <Button x:Name="LockNowButton" Content="立即锁屏（测试）" Padding="8,3"
                     HorizontalAlignment="Left" Click="LockNowButton_Click"/>
+
+            <TextBlock Text="人来解锁（实验性）" FontSize="13" FontWeight="Bold" Margin="0,14,0,4"/>
+            <CheckBox x:Name="CbUnlock" Content="启用（需安装解锁组件并录入 Windows 密码，见 docs/04）"
+                      Margin="0,0,0,4"
+                      Checked="CbUnlock_Changed" Unchecked="CbUnlock_Changed"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                <TextBlock x:Name="UnlockStatusText" VerticalAlignment="Center" Text="未录入"/>
+                <Button x:Name="BtnEnroll" Content="录入 / 管理密码…" Margin="8,0,0,0" Padding="8,2" Click="BtnEnroll_Click"/>
+            </StackPanel>
+
             <TextBlock Text="关闭窗口将最小化到托盘；从托盘菜单退出。"
                        FontSize="11" Foreground="Gray" Margin="0,10,0,0"/>
         </StackPanel>

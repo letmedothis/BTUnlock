@@ -1,0 +1,30 @@
+<Window x:Class="BTUnlock.Desktop.EnrollWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="录入 Windows 密码 — BTUnlock"
+        Width="460" Height="480"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize">
+    <StackPanel Margin="16">
+        <TextBlock Text="工作原理与安全须知" FontSize="13" FontWeight="Bold" Margin="0,0,0,4"/>
+        <Border Background="#FFF7ED" CornerRadius="4" Padding="10" Margin="0,0,0,10">
+            <TextBlock TextWrapping="Wrap" FontSize="11" LineHeight="17"
+                       Text="Windows 不存在官方解锁 API，「人来解锁」通过自研凭据提供程序提交你的 Windows 密码实现，因此必须录入一次。密码经机器级 DPAPI 加密后保存在 %ProgramData%\BTUnlock。请知悉：① 本机任意 SYSTEM 权限代码理论上可解密；② 仅建议个人自用电脑开启；③ 修改 Windows 密码后需重新录入；④ 微软在线账户可能不适用（本地账户/域账户已验证路径）。"/>
+        </Border>
+
+        <TextBlock Text="用户名"/>
+        <TextBox x:Name="TbUser" Margin="0,2,0,8"/>
+        <TextBlock Text="域名 / 计算机名（本机账户通常不用改）"/>
+        <TextBox x:Name="TbDomain" Margin="0,2,0,8"/>
+        <TextBlock Text="Windows 登录密码"/>
+        <PasswordBox x:Name="PbPassword" Margin="0,2,0,8"/>
+        <TextBlock Text="确认密码"/>
+        <PasswordBox x:Name="PbConfirm" Margin="0,2,0,12"/>
+
+        <StackPanel Orientation="Horizontal">
+            <Button x:Name="BtnSave" Content="保存" Padding="14,4" Margin="0,0,8,0" Click="BtnSave_Click"/>
+            <Button x:Name="BtnClear" Content="清除已录入" Padding="14,4" Margin="0,0,8,0" Click="BtnClear_Click"/>
+            <Button Content="取消" Padding="14,4" IsCancel="True"/>
+        </StackPanel>
+    </StackPanel>
+</Window>
