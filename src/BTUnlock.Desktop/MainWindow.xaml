@@ -66,7 +66,7 @@
             <TextBlock FontSize="11" Foreground="Gray" Margin="0,0,0,4" TextWrapping="Wrap"
                        Text="手机端 App 会显示 32 位密钥，原样粘贴到这里并保存。启用后，无有效令牌的信号帧将被完全忽略（既不解锁也不阻拦锁屏）；建议同时开启「人来解锁」。"/>
             <TextBox x:Name="TbTokenSecret" Margin="0,0,0,4" FontFamily="Consolas"
-                     MaxLength="32" characterCasing="Lower"/>
+                     MaxLength="32" CharacterCasing="Lower"/>
             <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                 <Button x:Name="SaveTokenButton" Content="保存密钥" Padding="10,3" Margin="0,0,8,0" Click="SaveTokenButton_Click"/>
                 <Button x:Name="ClearTokenButton" Content="清除" Padding="10,3" Click="ClearTokenButton_Click"/>

@@ -107,9 +107,10 @@ public sealed class AdvertiseController
         // 不放 128 位 Service UUID；PC 端按 CompanyId+魔数识别并校验签名（抗重放）。
         var counter = (uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         var secret = DeviceIdentity.SecretBytes(Application.Context);
-        var payload = new AdvertPayload(deviceId, counter, ComputeMac(secret, deviceId, counter), HasToken: true).ToBytesV2();
+        var mac = ComputeMac(secret, deviceId, counter);
         var data = new AdvertiseData.Builder()
-            .AddManufacturerData(ProtocolConstants.ManufacturerCompanyId, payload)
+            .AddManufacturerData(ProtocolConstants.ManufacturerCompanyId,
+                AdvertPayload.ToBytesV2(deviceId, counter, mac))
             .Build();
 
         advertiser.StartAdvertising(settings, data, _callback);
