@@ -128,7 +128,7 @@ public partial class App : Application
 
         _trayIcon = new Forms.NotifyIcon
         {
-            Icon = System.Drawing.SystemIcons.Shield,
+            Icon = System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath!) ?? System.Drawing.SystemIcons.Shield,
             Visible = true,
             Text = "BTUnlock",
             ContextMenuStrip = menu,

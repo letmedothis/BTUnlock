@@ -16,11 +16,30 @@ public partial class MainWindow : Window
         InitializeComponent();
         var version = typeof(MainWindow).Assembly.GetName().Version;
         if (version is not null) Title += $"  v{version.ToString(3)}";
+        SetWindowIconFromExe();
         Loaded += (_, _) =>
         {
             LoadSettingsIntoUi();
             _suppressEvents = false;
         };
+    }
+
+    /// <summary>从 exe 内嵌图标取窗口图标，与 ApplicationIcon 始终同源。</summary>
+    private void SetWindowIconFromExe()
+    {
+        try
+        {
+            using var icon = System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath!);
+            if (icon is null) return;
+            var source = System.Windows.Interop.Imaging.CreateBitmapSourceFromHIcon(
+                icon.Handle, System.Windows.Int32Rect.Empty, System.Windows.Media.Imaging.BitmapSizeOptions.FromEmptyOptions());
+            source.Freeze();
+            Icon = source;
+        }
+        catch (Exception)
+        {
+            // 取不到就沿用系统默认图标，不影响功能
+        }
     }
 
     private static App App => (App)Application.Current;

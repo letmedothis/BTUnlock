@@ -54,7 +54,7 @@ public sealed class BleAdvertiserService : Service
         var notification = new Notification.Builder(this, ChannelId)
             .SetContentTitle("BTUnlock 正在广播")
             .SetContentText("保持本通知与后台运行，PC 端依赖此信号判断人走/人回")
-            .SetSmallIcon(global::Android.Resource.Drawable.IcDialogInfo) // TODO: 替换正式图标
+            .SetSmallIcon(Resource.Drawable.ic_stat_advertise)
             .SetOngoing(true)
             .Build();
 

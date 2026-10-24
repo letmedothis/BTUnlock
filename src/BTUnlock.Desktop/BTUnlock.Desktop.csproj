@@ -13,6 +13,7 @@
     <AssemblyName>BTUnlock</AssemblyName>
     <!-- 本地构建占位版本号；正式版本由 CI 以 -p:Version=0.1.<run_number> 注入 -->
     <Version>0.1.0</Version>
+    <ApplicationIcon>app.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
 
