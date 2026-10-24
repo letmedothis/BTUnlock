@@ -76,7 +76,7 @@ internal static class CredentialStore
     {
         var info = new FileInfo(path);
         var security = new FileSecurity();
-        security.SetAccessRuleProtection(protectionRules: true, inheritance: false);
+        security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
         foreach (var sid in new SecurityIdentifier[]
         {
             new(WellKnownSidType.LocalSystemSid, null),

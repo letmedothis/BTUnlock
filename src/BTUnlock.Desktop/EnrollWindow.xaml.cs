@@ -1,5 +1,6 @@
 using System.Windows;
 using BTUnlock.Desktop.Core;
+using MessageBox = System.Windows.MessageBox;
 
 namespace BTUnlock.Desktop;
 

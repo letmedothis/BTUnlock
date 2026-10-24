@@ -1,3 +1,4 @@
+using System.IO;
 using System.IO.Pipes;
 using System.Security.AccessControl;
 using System.Security.Principal;
@@ -47,9 +48,9 @@ public sealed class UnlockPipeServer : IDisposable
                     (SecurityIdentifier)WindowsIdentity.GetCurrent().User!,
                     PipeAccessRights.FullControl, AccessControlType.Allow));
 
-                pipe = new NamedPipeServerStream(PipeName, PipeDirection.InOut,
+                pipe = NamedPipeServerStreamAcl.Create(PipeName, PipeDirection.InOut,
                     maxNumberOfServerInstances: 1, PipeTransmissionMode.Byte, PipeOptions.None,
-                    inBufferSize: 64, outBufferSize: 2048, security);
+                    inBufferSize: 64, outBufferSize: 2048, pipeSecurity: security);
                 pipe.WaitForConnection();
             }
             catch (Exception)
