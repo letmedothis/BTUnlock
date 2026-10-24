@@ -22,11 +22,11 @@ public readonly record struct AdvertPayload(ulong DeviceId, uint Counter, uint M
         b[1] = (byte)(ProtocolConstants.Magic & 0xFF);
         b[2] = ProtocolConstants.Version2;
         for (var i = 0; i < 8; i++)
-            b[3 + i] = (byte)(DeviceId >> ((7 - i) * 8));
-        b[11] = (byte)Counter; b[12] = (byte)(Counter >> 8);
-        b[13] = (byte)(Counter >> 16); b[14] = (byte)(Counter >> 24);
-        b[15] = (byte)Mac; b[16] = (byte)(Mac >> 8);
-        b[17] = (byte)(Mac >> 16); b[18] = (byte)(Mac >> 24);
+            b[3 + i] = (byte)(deviceId >> ((7 - i) * 8));
+        b[11] = (byte)counter; b[12] = (byte)(counter >> 8);
+        b[13] = (byte)(counter >> 16); b[14] = (byte)(counter >> 24);
+        b[15] = (byte)mac; b[16] = (byte)(mac >> 8);
+        b[17] = (byte)(mac >> 16); b[18] = (byte)(mac >> 24);
         return b;
     }
 
@@ -38,22 +38,23 @@ public readonly record struct AdvertPayload(ulong DeviceId, uint Counter, uint M
             data[1] != (byte)(ProtocolConstants.Magic & 0xFF))
             return false;
 
-        ulong ReadDeviceId()
+        // ref 结构不能被局部函数捕获，改为传参
+        static ulong ReadDeviceId(ReadOnlySpan<byte> d)
         {
             ulong id = 0;
             for (var i = 0; i < 8; i++)
-                id = (id << 8) | data[3 + i];
+                id = (id << 8) | d[3 + i];
             return id;
         }
 
         switch (data[2])
         {
             case ProtocolConstants.Version1:
-                payload = new AdvertPayload(ReadDeviceId(), 0, 0, HasToken: false);
+                payload = new AdvertPayload(ReadDeviceId(data), 0, 0, HasToken: false);
                 return true;
             case ProtocolConstants.Version2 when data.Length >= V2Length:
                 payload = new AdvertPayload(
-                    ReadDeviceId(),
+                    ReadDeviceId(data),
                     (uint)(data[11] | (data[12] << 8) | (data[13] << 16) | (data[14] << 24)),
                     (uint)(data[15] | (data[16] << 8) | (data[17] << 16) | (data[18] << 24)),
                     HasToken: true);
