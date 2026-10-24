@@ -8,8 +8,10 @@ namespace BTUnlock.Android.Ble;
 /// 前台服务：常驻通知 + BLE 广播。foregroundServiceType 用 connectedDevice，
 /// 这是 Android 12+ 从后台/开机拉起此类服务所要求的类型。
 /// </summary>
+// 注意：本项目命名空间 BTUnlock.Android 会遮蔽系统的 Android.*，
+// 凡以 Android. 开头的引用必须写全 global:: 前缀。
 [Service(Name = "com.btunlock.android.BleAdvertiserService", Exported = false,
-    ForegroundServiceType = Android.Content.PM.ForegroundService.TypeConnectedDevice)]
+    ForegroundServiceType = global::Android.Content.PM.ForegroundService.TypeConnectedDevice)]
 public sealed class BleAdvertiserService : Service
 {
     public const string ChannelId = "btunlock_advertise";
@@ -52,13 +54,13 @@ public sealed class BleAdvertiserService : Service
         var notification = new Notification.Builder(this, ChannelId)
             .SetContentTitle("BTUnlock 正在广播")
             .SetContentText("保持本通知与后台运行，PC 端依赖此信号判断人走/人回")
-            .SetSmallIcon(Android.Resource.Drawable.IcDialogInfo) // TODO: 替换正式图标
+            .SetSmallIcon(global::Android.Resource.Drawable.IcDialogInfo) // TODO: 替换正式图标
             .SetOngoing(true)
             .Build();
 
         if (Build.VERSION.SdkInt >= BuildVersionCodes.Q)
             StartForeground(NotificationId, notification,
-                (int)Android.Content.PM.ForegroundService.TypeConnectedDevice);
+                (int)global::Android.Content.PM.ForegroundService.TypeConnectedDevice);
         else
             StartForeground(NotificationId, notification);
 
