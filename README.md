@@ -60,7 +60,7 @@ BTUnlock/
 
 #### 手机端（小米/红米）
 
-1. 构建（需 .NET 8 SDK + Android workload，见 [docs/05-development.md](docs/05-development.md)）：
+1. 构建（安卓端需 .NET 10 SDK + Android workload，见 [docs/05-development.md](docs/05-development.md)）：
    ```bash
    dotnet build src/BTUnlock.Android -c Release
    ```
