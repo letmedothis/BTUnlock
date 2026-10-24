@@ -2,9 +2,13 @@ name: build-release
 
 # 每次 push 触发构建；推到 main 额外创建 GitHub Release（版本号自动递增，
 # 更新内容由 GitHub 按两次版本之间的提交自动生成）。详见 docs/06-ci-release.md
+# 纯文档改动（docs/ 与 *.md）不触发，节省 Actions 时长。
 
 on:
   push:
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
   workflow_dispatch:
 
 permissions:

@@ -60,7 +60,7 @@ BTUnlock/
 
 #### 手机端（小米/红米）
 
-1. 构建（安卓端需 .NET 10 SDK + Android workload，见 [docs/05-development.md](docs/05-development.md)）：
+1. 构建：**默认不在本地构建安卓端**，push 后从 [Actions](https://github.com/letmedothis/BTUnlock/actions)/[Releases](https://github.com/letmedothis/BTUnlock/releases) 下载 APK（本项目约定：编译验证全靠 CI；本地工具链仅断点调试时才需要，见 [docs/05-development.md](docs/05-development.md)）
    ```bash
    dotnet build src/BTUnlock.Android -c Release
    ```

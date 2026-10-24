@@ -2,11 +2,13 @@
 
 ## 环境要求
 
+本机**只需要**装 .NET 8 SDK（PC 端开发调试用）。安卓端不装任何本地工具链，
+编译验证全部走 CI——push 后在 Actions 下载 APK，这是本项目约定的工作方式。
+
 | 组件 | 版本 | 用途 |
 |---|---|---|
 | .NET SDK | 8.0.x | PC 端与 Protocol（本机已装） |
-| .NET SDK | 10.0.x | 仅安卓端（net10.0-android 需现役 LTS；net8.0-android workload 已停止支持） |
-| Android workload | `dotnet workload install android` | 仅安卓端（随 SDK 10 安装，含 JDK 17 与 Android SDK 依赖） |
+| Android workload | 不装 | 安卓端只在 CI 构建（CI 用 .NET 10 SDK + android workload）；仅当需要本地断点调试安卓时才装（数 GB，慎装） |
 | Android 设备 | API 26+（Android 8.0+） | 小米/红米需开发者模式 + USB 安装 |
 | Windows | 10 19041+ / 11，带蓝牙适配器 | PC 端 |
 
@@ -19,10 +21,11 @@
 # PC 端（依赖 Protocol，自动级联）
 dotnet build src/BTUnlock.Desktop -c Release
 
-# 安卓端（本机需另装 .NET 10 SDK，CI 已自动处理）
-dotnet workload install android        # 首次
-dotnet build src/BTUnlock.Android -c Release
-# 产物 APK：src/BTUnlock.Android/bin/Release/net10.0-android/*-Signed.apk
+# 安卓端：默认不在本地构建，push 后从 Actions/Releases 下载 APK（推荐）
+# 仅断点调试等特殊需要时才装本地工具链：
+#   dotnet workload install android   （需 .NET 10 SDK，数 GB）
+#   dotnet build src/BTUnlock.Android -c Release
+#   产物：src/BTUnlock.Android/bin/Release/net10.0-android/*-Signed.apk
 adb install -r <apk路径>
 ```
 
