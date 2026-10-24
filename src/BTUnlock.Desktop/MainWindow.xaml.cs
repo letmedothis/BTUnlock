@@ -5,6 +5,9 @@ using BTUnlock.Desktop.Core;
 using BTUnlock.Protocol;
 using Application = System.Windows.Application;
 using MessageBox = System.Windows.MessageBox;
+using Brush = System.Windows.Media.Brush;
+using Color = System.Windows.Media.Color;
+using Point = System.Windows.Point;
 
 namespace BTUnlock.Desktop;
 
