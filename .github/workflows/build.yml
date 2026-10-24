@@ -1,0 +1,114 @@
+name: build-release
+
+# 每次 push 触发构建；推到 main 额外创建 GitHub Release（版本号自动递增，
+# 更新内容由 GitHub 按两次版本之间的提交自动生成）。详见 docs/06-ci-release.md
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-pc:
+    name: 构建 PC 端（自包含单文件 exe）
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Publish
+        run: >
+          dotnet publish src/BTUnlock.Desktop -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true
+          "-p:Version=0.1.${{ github.run_number }}"
+          -o publish/pc
+
+      - name: 打包并生成校验和
+        shell: pwsh
+        run: |
+          $v = "0.1.$env:GITHUB_RUN_NUMBER"
+          $zip = "BTUnlock-Desktop-win-x64-v$v.zip"
+          Compress-Archive -Path publish/pc/* -DestinationPath $zip
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash
+          "$hash  $zip" | Out-File -NoNewline -Encoding ascii "$zip.sha256"
+          Get-ChildItem BTUnlock-Desktop-* | Select-Object Name, Length
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BTUnlock-Desktop-win-x64
+          path: |
+            BTUnlock-Desktop-win-x64-*.zip
+            BTUnlock-Desktop-win-x64-*.zip.sha256
+          if-no-files-found: error
+
+  build-android:
+    name: 构建安卓端（APK）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: 安装 android workload
+        run: dotnet workload install android
+
+      - name: 构建 APK
+        run: >
+          dotnet build src/BTUnlock.Android -c Release
+          "-p:Version=0.1.${{ github.run_number }}"
+          "-p:ApplicationDisplayVersion=0.1.${{ github.run_number }}"
+          "-p:ApplicationVersion=${{ github.run_number }}"
+
+      - name: 打包并生成校验和
+        run: |
+          v="0.1.$GITHUB_RUN_NUMBER"
+          apk=$(ls src/BTUnlock.Android/bin/Release/net8.0-android/*-Signed.apk 2>/dev/null | head -1)
+          if [ -z "$apk" ]; then echo "未找到已签名 APK"; exit 1; fi
+          cp "$apk" "BTUnlock-Android-v$v.apk"
+          sha256sum "BTUnlock-Android-v$v.apk" > "BTUnlock-Android-v$v.apk.sha256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BTUnlock-Android
+          path: |
+            BTUnlock-Android-*.apk
+            BTUnlock-Android-*.apk.sha256
+          if-no-files-found: error
+
+  release:
+    name: 发布 Release（仅 main 分支）
+    needs: [build-pc, build-android]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: 创建 Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v="0.1.$GITHUB_RUN_NUMBER"
+          tag="v$v"
+          # 同一 run 重跑时清理旧 Release/Tag，保证可重复执行
+          gh release delete "$tag" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "$tag" \
+            --title "v$v" \
+            --generate-notes \
+            --target "$GITHUB_SHA" \
+            dist/*
