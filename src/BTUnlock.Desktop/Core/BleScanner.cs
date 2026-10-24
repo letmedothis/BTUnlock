@@ -5,7 +5,8 @@ using Windows.Storage.Streams;
 
 namespace BTUnlock.Desktop.Core;
 
-public readonly record struct AdvertObservation(ulong DeviceId, short Rssi, DateTimeOffset Timestamp);
+public readonly record struct AdvertObservation(ulong DeviceId, short Rssi, DateTimeOffset Timestamp,
+    uint Counter, uint Mac, bool HasToken);
 
 /// <summary>
 /// 封装 WinRT 的 BLE 广播监听器：只放行本协议的 Manufacturer Data，
@@ -68,7 +69,8 @@ public sealed class BleScanner : IDisposable
             DataReader.FromBuffer(md.Data).ReadBytes(bytes);
             if (!AdvertPayload.TryParse(bytes, out var payload)) continue;
 
-            var observation = new AdvertObservation(payload.DeviceId, args.RawSignalStrengthInDBm, DateTimeOffset.Now);
+            var observation = new AdvertObservation(payload.DeviceId, args.RawSignalStrengthInDBm,
+                DateTimeOffset.Now, payload.Counter, payload.Mac, payload.HasToken);
             _seen[observation.DeviceId] = observation;
             AdvertReceived?.Invoke(observation);
             return;

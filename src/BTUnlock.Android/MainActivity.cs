@@ -38,6 +38,8 @@ public sealed class MainActivity : Activity
             $"设备 ID：{AdvertPayload.ToFullId(deviceId)}";
         FindViewById<TextView>(Resource.Id.tvPairCode)!.Text =
             $"配对码：{AdvertPayload.ToPairingCode(deviceId)}（绑定 PC 时与之比对）";
+        FindViewById<TextView>(Resource.Id.tvSecret)!.Text =
+            $"安全密钥（PC 端「滚动令牌」粘贴此项）：\n{DeviceIdentity.GetOrCreateSecretHex(this)}";
 
         _statusText = FindViewById<TextView>(Resource.Id.tvStatus)!;
         _toggleButton = FindViewById<Button>(Resource.Id.btnToggle)!;

@@ -1,0 +1,19 @@
+<Window x:Class="BTUnlock.Desktop.CalibrationWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="阈值校准向导 — BTUnlock"
+        Width="500" Height="400"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize">
+    <StackPanel Margin="16">
+        <TextBlock x:Name="StepTitle" Text="第一步 · 工位采样" FontSize="15" FontWeight="Bold" Margin="0,0,0,6"/>
+        <TextBlock x:Name="StepDesc" TextWrapping="Wrap" Foreground="Gray" Margin="0,0,0,12"
+                   Text="把手机带在身上，坐到你平时用电脑的正常位置，让手机保持原样（桌上/口袋），然后点「开始采样」。采样 8 秒，期间保持不动。"/>
+        <ProgressBar x:Name="Progress" Height="18" Minimum="0" Maximum="100" Margin="0,0,0,12"/>
+        <TextBlock x:Name="StepResult" TextWrapping="Wrap" Margin="0,0,0,0" FontSize="12"/>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button x:Name="MainButton" Content="开始采样" Padding="16,4" Margin="0,0,8,0" Click="MainButton_Click"/>
+            <Button Content="关闭" Padding="16,4" IsCancel="True"/>
+        </StackPanel>
+    </StackPanel>
+</Window>

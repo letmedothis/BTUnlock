@@ -88,8 +88,9 @@ BTUnlock/
 - [x] **图标**：统一挂锁视觉——PC exe/窗口/托盘 + Android 自适应启动图标/通知剪影（`tools/generate-icons.ps1` 可再生）
 - [x] **M3 人来解锁（实验性）**：C++ Credential Provider + 命名管道在场状态 + 机器级 DPAPI 密码录入
       （安装与安全须知：[docs/04-unlock-credential-provider.md](docs/04-unlock-credential-provider.md)）
-- [ ] **M3.1 安全升级**：BLE 滚动令牌，防广播克隆重放
-- [ ] **M4 打磨**：阈值校准向导、全屏/下载防误锁
+- [x] **M3.1 安全升级**：BLE 滚动令牌（时间戳 + HMAC 签名，抗抓包克隆/重放）
+- [x] **M4 打磨**：阈值校准向导、实时 RSSI 曲线、全屏防误锁、文件日志、新版本提醒、.NET 10 升级
+- [ ] **后续候选**：解锁多因子（令牌 + Windows Hello 双确认）、i18n、CP 错误密码自动降级提示
 
 ## 文档索引
 

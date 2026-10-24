@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Threading;
 using BTUnlock.Desktop.Core;
+using BTUnlock.Protocol;
 using Application = System.Windows.Application;
 using MessageBox = System.Windows.MessageBox;
 using Forms = System.Windows.Forms;
@@ -21,12 +22,23 @@ public partial class App : Application
     private bool _exiting;
     private bool _startHidden;
     private bool _lockPaused;
+    private bool _pendingLockForFullscreen;
+    private byte[]? _tokenSecret;
+
+    private readonly object _historyGate = new();
+    private readonly List<(DateTime Time, double Rssi)> _rssiHistory = new();
+    private long _tokenOkCount;
+    private long _tokenFailCount;
 
     public AppSettings Settings { get; private set; } = null!;
     public bool IsExiting => _exiting;
     public bool LockPaused => _lockPaused;
     public BleScanner Scanner => _scanner;
     public ProximityDetector Detector => _detector;
+
+    public string TokenStatus => _tokenSecret is null
+        ? "未启用（手机端 v2 广播 + 粘贴密钥后生效）"
+        : $"运行中 · 校验通过 {_tokenOkCount:N0} 次 · 拦截 {_tokenFailCount:N0} 帧";
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -43,6 +55,9 @@ public partial class App : Application
 
         Settings = _settingsStore.Load();
         _startHidden = e.Args.Contains("/tray", StringComparer.OrdinalIgnoreCase);
+        LoadTokenSecret();
+        Log.Info($"启动 v{typeof(App).Assembly.GetName().Version}，绑定设备 {Settings.DeviceIdHex ?? "无"}，" +
+                 $"令牌 {(Settings.TokenSecretHex is null ? "未启用" : "已启用")}，解锁 {(Settings.EnableUnlock ? "启用" : "关闭")}");
 
         BuildTrayIcon();
 
@@ -75,6 +90,22 @@ public partial class App : Application
         MainWindow = window;
         if (_startHidden) window.Hide();
         else window.Show();
+
+        _ = CheckForUpdateAsync(notifyNoUpdate: false); // 启动静默检查
+    }
+
+    public void LoadTokenSecret()
+    {
+        try
+        {
+            _tokenSecret = Settings.TokenSecretHex is null ? null : TokenMath.ParseSecretHex(Settings.TokenSecretHex);
+            Interlocked.Exchange(ref _tokenFailCount, 0);
+        }
+        catch (Exception)
+        {
+            _tokenSecret = null;
+            Log.Warn("滚动令牌密钥格式无效，已忽略");
+        }
     }
 
     public void RebuildDetector()
@@ -97,22 +128,68 @@ public partial class App : Application
         RebuildDetector();
     }
 
+    public IReadOnlyList<(DateTime Time, double Rssi)> RssiSnapshot()
+    {
+        lock (_historyGate) return _rssiHistory.ToList();
+    }
+
     private void OnAdvertReceived(AdvertObservation observation)
     {
-        if (Settings.DeviceId is { } boundId && observation.DeviceId == boundId)
-            _detector.Feed(observation.Rssi);
+        if (Settings.DeviceId is not { } boundId || observation.DeviceId != boundId) return;
+
+        if (_tokenSecret is not null)
+        {
+            if (!observation.HasToken ||
+                !TokenMath.Verify(_tokenSecret, observation.DeviceId, observation.Counter, observation.Mac) ||
+                !TokenMath.IsFresh(observation.Counter))
+            {
+                var fails = Interlocked.Increment(ref _tokenFailCount);
+                if (fails is 1 or 20 or 200)
+                    Log.Warn($"令牌校验失败第 {fails} 帧（无令牌字段/MAC 错/过期），已丢弃");
+                return;
+            }
+            Interlocked.Increment(ref _tokenOkCount);
+        }
+
+        _detector.Feed(observation.Rssi);
+        lock (_historyGate)
+        {
+            _rssiHistory.Add((DateTime.Now, observation.Rssi));
+            var cutoff = DateTime.Now - TimeSpan.FromSeconds(180);
+            var firstValid = _rssiHistory.FindIndex(p => p.Time >= cutoff);
+            if (firstValid > 0) _rssiHistory.RemoveRange(0, firstValid);
+        }
     }
 
     private void OnPresenceChanged(PresenceState state)
     {
-        // StateChanged 在检测器内部锁内触发，这里只做快速动作
+        Log.Info($"手机状态 → {state}");
         if (state == PresenceState.Absent && Settings.EnableAutoLock && !_lockPaused)
-            WorkStationLocker.TryLock();
+            TryLockNow("人走");
+    }
+
+    private void TryLockNow(string reason)
+    {
+        if (FullscreenDetector.IsForegroundFullscreen())
+        {
+            if (!_pendingLockForFullscreen) Log.Warn($"触发锁屏（{reason}）但前台全屏，挂起等待退出全屏");
+            _pendingLockForFullscreen = true;
+            return;
+        }
+        _pendingLockForFullscreen = false;
+        if (WorkStationLocker.TryLock()) Log.Info($"已锁屏（{reason}）");
     }
 
     private void OnSecondElapsed()
     {
         _detector.EvaluateTimeout();
+
+        // 全屏挂起的锁屏：退出全屏后补锁（仍要求状态为离开）
+        if (_pendingLockForFullscreen && !_lockPaused &&
+            Settings.EnableAutoLock && _detector.State == PresenceState.Absent)
+        {
+            TryLockNow("全屏结束补锁");
+        }
 
         if (MainWindow is MainWindow { IsLoaded: true } window)
             window.RefreshStatus();
@@ -132,6 +209,23 @@ public partial class App : Application
         }
     }
 
+    public async Task CheckForUpdateAsync(bool notifyNoUpdate)
+    {
+        var (hasUpdate, tag, reason) = await Core.UpdateChecker.CheckAsync();
+        if (hasUpdate && tag is not null)
+        {
+            Log.Info($"发现新版本 {tag}");
+            await Dispatcher.InvokeAsync(() =>
+                _trayIcon?.ShowBalloonTip(8000, "BTUnlock 有新版本",
+                    $"{tag} 已发布，点击本提示打开下载页。", Forms.ToolTipIcon.Info));
+        }
+        else if (notifyNoUpdate)
+        {
+            await Dispatcher.InvokeAsync(() =>
+                MessageBox.Show($"当前无可用更新（{reason}）。", "BTUnlock", MessageBoxButton.OK, MessageBoxImage.Information));
+        }
+    }
+
     private void BuildTrayIcon()
     {
         var menu = new Forms.ContextMenuStrip();
@@ -139,6 +233,7 @@ public partial class App : Application
         var pauseItem = new Forms.ToolStripMenuItem("暂停自动锁屏") { CheckOnClick = true };
         pauseItem.CheckedChanged += (_, _) => _lockPaused = pauseItem.Checked;
         menu.Items.Add(pauseItem);
+        menu.Items.Add("检查更新", null, (_, _) => { var _ignore = CheckForUpdateAsync(true); });
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add("退出", null, (_, _) => ExitApp());
 
@@ -150,6 +245,11 @@ public partial class App : Application
             ContextMenuStrip = menu,
         };
         _trayIcon.DoubleClick += (_, _) => ShowMainWindow();
+        _trayIcon.BalloonTipClicked += (_, _) => System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = Core.UpdateChecker.ReleasesUrl,
+            UseShellExecute = true,
+        });
     }
 
     public void ShowMainWindow()
@@ -165,6 +265,7 @@ public partial class App : Application
     public void ExitApp()
     {
         _exiting = true;
+        Log.Info("退出");
         _unlockServer?.Dispose();
         _trayIcon?.Dispose();
         _scanner.Dispose();

@@ -3,42 +3,64 @@ using System.Globalization;
 namespace BTUnlock.Protocol;
 
 /// <summary>
-/// Manufacturer Data 负载（12 字节，大端）：
-///   [0..1]  Magic = 0x4255
-///   [2]     Version
-///   [3..10] DeviceId（8 字节，手机端安装时随机生成并持久化）
-///   [11]    Flags（bit0 预留给 M3 的滚动令牌开关）
+/// Manufacturer Data 负载（大端 deviceId，其余小端）：
+///   v1（12 字节）：[0..1] Magic  [2] 0x01  [3..10] DeviceId  [11] Flags
+///   v2（19 字节）：[0..1] Magic  [2] 0x02  [3..10] DeviceId  [11..14] 时间戳(LE)
+///                 [15..18] HMAC-SHA256(secret, deviceId ‖ 时间戳) 前 4 字节(LE)
+/// v2 时间戳 = Unix 秒；PC 校验 MAC 与新鲜度（TokenFreshnessSeconds 窗口），
+/// 抗抓包重放。v1 帧仍可解析（仅用于锁屏判定，不能用于解锁链路）。
 /// </summary>
-public readonly record struct AdvertPayload(ulong DeviceId, byte Flags)
+public readonly record struct AdvertPayload(ulong DeviceId, uint Counter, uint Mac, bool HasToken)
 {
-    public const int Length = 12;
+    public const int V1Length = 12;
+    public const int V2Length = 19;
 
-    public byte[] ToBytes()
+    public static byte[] ToBytesV2(ulong deviceId, uint counter, uint mac)
     {
-        var bytes = new byte[Length];
-        bytes[0] = (byte)(ProtocolConstants.Magic >> 8);
-        bytes[1] = (byte)(ProtocolConstants.Magic & 0xFF);
-        bytes[2] = ProtocolConstants.Version;
+        var b = new byte[V2Length];
+        b[0] = (byte)(ProtocolConstants.Magic >> 8);
+        b[1] = (byte)(ProtocolConstants.Magic & 0xFF);
+        b[2] = ProtocolConstants.Version2;
         for (var i = 0; i < 8; i++)
-            bytes[3 + i] = (byte)(DeviceId >> ((7 - i) * 8));
-        bytes[11] = Flags;
-        return bytes;
+            b[3 + i] = (byte)(DeviceId >> ((7 - i) * 8));
+        b[11] = (byte)Counter; b[12] = (byte)(Counter >> 8);
+        b[13] = (byte)(Counter >> 16); b[14] = (byte)(Counter >> 24);
+        b[15] = (byte)Mac; b[16] = (byte)(Mac >> 8);
+        b[17] = (byte)(Mac >> 16); b[18] = (byte)(Mac >> 24);
+        return b;
     }
 
     public static bool TryParse(ReadOnlySpan<byte> data, out AdvertPayload payload)
     {
         payload = default;
-        if (data.Length < Length) return false;
+        if (data.Length < V1Length) return false;
         if (data[0] != (byte)(ProtocolConstants.Magic >> 8) ||
             data[1] != (byte)(ProtocolConstants.Magic & 0xFF))
             return false;
-        if (data[2] != ProtocolConstants.Version) return false;
 
-        ulong deviceId = 0;
-        for (var i = 0; i < 8; i++)
-            deviceId = (deviceId << 8) | data[3 + i];
-        payload = new AdvertPayload(deviceId, data[11]);
-        return true;
+        ulong ReadDeviceId()
+        {
+            ulong id = 0;
+            for (var i = 0; i < 8; i++)
+                id = (id << 8) | data[3 + i];
+            return id;
+        }
+
+        switch (data[2])
+        {
+            case ProtocolConstants.Version1:
+                payload = new AdvertPayload(ReadDeviceId(), 0, 0, HasToken: false);
+                return true;
+            case ProtocolConstants.Version2 when data.Length >= V2Length:
+                payload = new AdvertPayload(
+                    ReadDeviceId(),
+                    (uint)(data[11] | (data[12] << 8) | (data[13] << 16) | (data[14] << 24)),
+                    (uint)(data[15] | (data[16] << 8) | (data[17] << 16) | (data[18] << 24)),
+                    HasToken: true);
+                return true;
+            default:
+                return false;
+        }
     }
 
     /// <summary>完整设备 ID（16 位十六进制），用于配置存储与日志。</summary>

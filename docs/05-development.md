@@ -7,7 +7,7 @@ Releases 下载即可（PC 端为自包含单文件，免运行时）。下表�
 
 | 组件 | 版本 | 用途 |
 |---|---|---|
-| .NET SDK | 8.0.x | 本地构建 PC 端（可选；当前约定全靠 CI，本机未装） |
+| .NET SDK | 10.0.x | PC 端与 Protocol（可选；全靠 CI 时本机无需安装） |
 | Android 工具链 | — | 本地构建安卓端（可选；需 .NET 10 SDK + android workload，数 GB） |
 | Android 设备 | API 26+（Android 8.0+） | 小米/红米需开发者模式 + USB 安装 |
 | Windows | 10 19041+ / 11，带蓝牙适配器 | PC 端 |

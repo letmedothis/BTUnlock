@@ -16,15 +16,22 @@ public sealed class AdvertiseController
 {
     private const long WatchdogIntervalMs = 60_000;
     private const long HardRestartMs = 15 * 60_000;
+    private const long RefreshIntervalMs = 10_000;
 
     private readonly Handler _watchdog = new(Looper.MainLooper!);
     private readonly Java.Lang.Runnable _watchdogRunnable;
+    private readonly Java.Lang.Runnable _refreshRunnable;
     private BluetoothLeAdvertiser? _advertiser;
     private AdvertiseCallbackImpl? _callback;
     private bool _watchdogRunning;
+    private bool _refreshRunning;
     private DateTimeOffset _lastRestartUtc = DateTimeOffset.MinValue;
 
-    public AdvertiseController() => _watchdogRunnable = new Java.Lang.Runnable(WatchdogTick);
+    public AdvertiseController()
+    {
+        _watchdogRunnable = new Java.Lang.Runnable(WatchdogTick);
+        _refreshRunnable = new Java.Lang.Runnable(RefreshTick);
+    }
 
     public bool IsAdvertising { get; private set; }
     public int RestartCount { get; private set; }
@@ -39,12 +46,18 @@ public sealed class AdvertiseController
             _watchdogRunning = true;
             _watchdog.PostDelayed(_watchdogRunnable, WatchdogIntervalMs);
         }
+        if (!_refreshRunning)
+        {
+            _refreshRunning = true;
+            _watchdog.PostDelayed(_refreshRunnable, RefreshIntervalMs);
+        }
         TryStart();
     }
 
     public void Stop()
     {
         _watchdogRunning = false;
+        _refreshRunning = false;
         QuietStop();
         RestartCount = 0;
         SharedStatus = "未运行";
@@ -90,11 +103,13 @@ public sealed class AdvertiseController
             .Build();
 
         var deviceId = DeviceIdentity.GetOrCreate(Application.Context);
-        // 传统广播包上限 31 字节：只放 Manufacturer Data（2 公司ID + 12 负载 + 2 头 = 16 字节）。
-        // 不放 128 位 Service UUID（单独占 18 字节必超限）；PC 端仅按 CompanyId+魔数识别。
+        // v2 负载：ID + Unix 秒 + HMAC 签名（19 字节）。传统广播包上限 31 字节，
+        // 不放 128 位 Service UUID；PC 端按 CompanyId+魔数识别并校验签名（抗重放）。
+        var counter = (uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var secret = DeviceIdentity.SecretBytes(Application.Context);
+        var payload = new AdvertPayload(deviceId, counter, ComputeMac(secret, deviceId, counter), HasToken: true).ToBytesV2();
         var data = new AdvertiseData.Builder()
-            .AddManufacturerData(ProtocolConstants.ManufacturerCompanyId,
-                new AdvertPayload(deviceId, Flags: 0).ToBytes())
+            .AddManufacturerData(ProtocolConstants.ManufacturerCompanyId, payload)
             .Build();
 
         advertiser.StartAdvertising(settings, data, _callback);
@@ -129,6 +144,38 @@ public sealed class AdvertiseController
             TryStart();
         }
         _watchdog.PostDelayed(_watchdogRunnable, WatchdogIntervalMs);
+    }
+
+    /// <summary>
+    /// 每 10 秒带新时间戳重建广播（令牌刷新）：旧 API 广播内容固定，
+    /// 只能 stop/start 换内容。PC 端接受 ±45 秒新鲜度，短暂间隙无影响。
+    /// </summary>
+    private void RefreshTick()
+    {
+        if (!_refreshRunning) return;
+        if (BleAdvertiserService.IsRunning && IsAdvertising)
+        {
+            QuietStop();
+            TryStart();
+        }
+        _watchdog.PostDelayed(_refreshRunnable, RefreshIntervalMs);
+    }
+
+    /// <summary>与 PC 端 TokenMath.ComputeMac 算法严格一致：
+    /// HMAC-SHA256(secret, deviceId 大端 8B ‖ counter 小端 4B) 前 4 字节按小端读 uint。</summary>
+    private static uint ComputeMac(byte[] secret, ulong deviceId, uint counter)
+    {
+        var mac = Javax.Crypto.Mac.GetInstance("HmacSHA256")!;
+        mac.Init(new Javax.Crypto.Spec.SecretKeySpec(secret, "HmacSHA256"));
+        var message = new byte[12];
+        for (var i = 0; i < 8; i++)
+            message[i] = (byte)(deviceId >> ((7 - i) * 8));
+        message[8] = (byte)counter;
+        message[9] = (byte)(counter >> 8);
+        message[10] = (byte)(counter >> 16);
+        message[11] = (byte)(counter >> 24);
+        var digest = mac.DoFinal(message);
+        return (uint)(digest[0] | (digest[1] << 8) | (digest[2] << 16) | (digest[3] << 24));
     }
 
     private sealed class AdvertiseCallbackImpl : AdvertiseCallback
