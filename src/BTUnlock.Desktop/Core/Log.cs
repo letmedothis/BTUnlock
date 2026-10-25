@@ -1,3 +1,5 @@
+using System.IO;
+
 namespace BTUnlock.Desktop.Core;
 
 /// <summary>主程序文件日志：%APPDATA%\BTUnlock\log.txt，超 512KB 截断重开。写失败静默。</summary>

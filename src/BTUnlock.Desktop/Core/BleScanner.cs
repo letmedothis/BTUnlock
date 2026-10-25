@@ -63,7 +63,7 @@ public sealed class BleScanner : IDisposable
             if (md.CompanyId != ProtocolConstants.ManufacturerCompanyId) continue;
 
             var length = checked((int)md.Data.Length);
-            if (length < AdvertPayload.Length) continue;
+            if (length < AdvertPayload.V1Length) continue;
 
             var bytes = new byte[length];
             DataReader.FromBuffer(md.Data).ReadBytes(bytes);
