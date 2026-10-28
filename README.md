@@ -93,6 +93,8 @@ Windows BLE 扫描 → 绑定设备过滤 → 可选令牌校验 → RSSI 在场
 
 ## 实验性自动解锁
 
+如果希望不安装 Android App，可先使用主界面的“蓝牙设备连接验证（无需手机 App）…”测试任意已配对的手机、蓝牙鼠标或键盘。工具同时枚举经典蓝牙和 BLE，记录连接变化、会话锁定/解锁事件与运行心跳；记录期间暂停原有自动锁屏/解锁，当前尚未将连接事件接入自动解锁。步骤与判断标准见 [蓝牙设备连接验证](docs/07-bluetooth-connection-probe.md)。
+
 1. 先完成绑定、密钥配置及在场判定测试，并阅读 [解锁组件说明](docs/04-unlock-credential-provider.md)。
 2. 解压解锁组件包，在**管理员 PowerShell** 中进入解压目录，执行 `./install-cp.ps1`。脚本将 DLL 复制到 `%ProgramFiles%\BTUnlock` 并注册组件。
 3. PC 主界面点击“录入 / 管理密码…”，填写 Windows 用户名、域和**账户密码（不是 PIN）**，然后勾选“人来解锁”的启用项。
@@ -182,5 +184,6 @@ BTUnlock/
 | [04-unlock-credential-provider.md](docs/04-unlock-credential-provider.md) | 解锁组件设计、安装与回退 |
 | [05-development.md](docs/05-development.md) | 本地构建与调试说明 |
 | [06-ci-release.md](docs/06-ci-release.md) | Actions 打包与 Release 流程 |
+| [07-bluetooth-connection-probe.md](docs/07-bluetooth-connection-probe.md) | 无 Android App 的蓝牙设备连接验证与日志说明 |
 
 部分专题文档仍保留旧版本表述；目标框架、执行命令和安全条件请结合当前项目文件、工作流及源码核对。

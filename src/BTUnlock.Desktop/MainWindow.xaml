@@ -47,6 +47,9 @@
                 <Canvas x:Name="RssiChart" Height="90" ClipToBounds="True"/>
             </Border>
 
+            <Button Content="蓝牙设备连接验证（无需手机 App）…" Padding="8,4"
+                    HorizontalAlignment="Left" Margin="0,0,0,14" Click="ConnectionProbeButton_Click"/>
+
             <!-- 手机设备 -->
             <TextBlock Text="手机设备" FontSize="13" FontWeight="Bold" Margin="0,0,0,4"/>
             <StackPanel Orientation="Horizontal" Margin="0,0,0,4">

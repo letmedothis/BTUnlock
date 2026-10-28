@@ -1,0 +1,34 @@
+<Window x:Class="BTUnlock.Desktop.ConnectionProbeWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="蓝牙连接验证 — BTUnlock" Width="780" Height="650"
+        MinWidth="650" MinHeight="500" WindowStartupLocation="CenterOwner">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/><RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <TextBlock TextWrapping="Wrap" Margin="0,0,0,10"
+                   Text="选择任意已配对的蓝牙设备（手机、鼠标、键盘等，支持经典蓝牙和 BLE）开始记录，无需 Android App。记录期间暂停 BTUnlock 原有自动锁屏和自动解锁；停止记录后恢复原设置。Windows 动态锁不受影响。"/>
+        <DockPanel Grid.Row="1" Margin="0,0,0,10">
+            <Button x:Name="RefreshButton" DockPanel.Dock="Right" Content="刷新已配对设备" Padding="10,4" Margin="8,0,0,0" Click="RefreshButton_Click"/>
+            <ComboBox x:Name="Devices" DisplayMemberPath="Display" MinHeight="28"/>
+        </DockPanel>
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,10">
+            <Button x:Name="StartButton" Content="开始记录" Padding="12,4" Click="StartButton_Click"/>
+            <Button x:Name="StopButton" Content="停止记录" Padding="12,4" Margin="8,0,0,0" Click="StopButton_Click"/>
+            <Button Content="打开日志目录" Padding="12,4" Margin="8,0,0,0" Click="OpenLogButton_Click"/>
+        </StackPanel>
+        <TextBlock x:Name="StatusText" Grid.Row="3" TextWrapping="Wrap" Margin="0,0,0,8"/>
+        <DockPanel Grid.Row="4" Margin="0,0,0,8">
+            <Button DockPanel.Dock="Right" Content="添加测试标记" Padding="8,3" Margin="8,0,0,0" Click="MarkButton_Click"/>
+            <TextBox x:Name="MarkerText" Text="工位息屏 / 准备离开 / 已返回" VerticalContentAlignment="Center"/>
+        </DockPanel>
+        <TextBox x:Name="EventsText" Grid.Row="5" IsReadOnly="True" FontFamily="Consolas"
+                 FontSize="12" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"/>
+        <TextBlock Grid.Row="6" TextWrapping="Wrap" Foreground="Gray" Margin="0,10,0,0"
+                   Text="测试：设备在旁边静置/休眠 → 断开或带离范围 → 电脑锁屏期间恢复连接 → 手动解锁检查日志。鼠标须使用蓝牙模式，2.4G USB 接收器不属于蓝牙；休眠断开不能直接代表离开。关闭窗口继续记录；退出程序结束记录。日志含设备名称及地址，分享前请脱敏。"/>
+    </Grid>
+</Window>

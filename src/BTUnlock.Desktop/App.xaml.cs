@@ -35,6 +35,7 @@ public partial class App : Application
     public bool LockPaused => _lockPaused;
     public BleScanner Scanner => _scanner;
     public ProximityDetector Detector => _detector;
+    public BluetoothConnectionProbe ConnectionProbe { get; } = new();
 
     public string TokenStatus => _tokenSecret is null
         ? "未启用（手机端 v2 广播 + 粘贴密钥后生效）"
@@ -69,7 +70,7 @@ public partial class App : Application
 
         // M3：解锁状态管道，供 LogonUI 里的凭据提供程序查询
         _unlockServer = new UnlockPipeServer(
-            () => Settings.EnableUnlock &&
+            () => !ConnectionProbe.IsRunning && Settings.EnableUnlock &&
                   Core.CredentialStore.TryLoad() is not null &&
                   _detector.State == PresenceState.Present,
             () =>
@@ -164,12 +165,13 @@ public partial class App : Application
     private void OnPresenceChanged(PresenceState state)
     {
         Log.Info($"手机状态 → {state}");
-        if (state == PresenceState.Absent && Settings.EnableAutoLock && !_lockPaused)
+        if (state == PresenceState.Absent && Settings.EnableAutoLock && !_lockPaused && !ConnectionProbe.IsRunning)
             TryLockNow("人走");
     }
 
     private void TryLockNow(string reason)
     {
+        if (ConnectionProbe.IsRunning) return;
         if (FullscreenDetector.IsForegroundFullscreen())
         {
             if (!_pendingLockForFullscreen) Log.Warn($"触发锁屏（{reason}）但前台全屏，挂起等待退出全屏");
@@ -274,6 +276,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        ConnectionProbe.Dispose();
         _trayIcon?.Dispose();
         if (_ownsMutex)
         {

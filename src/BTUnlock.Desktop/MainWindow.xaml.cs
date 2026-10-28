@@ -15,6 +15,7 @@ public partial class MainWindow : Window
 {
     private bool _suppressEvents = true;
     private List<ulong> _seenIds = new();
+    private ConnectionProbeWindow? _connectionProbeWindow;
 
     private static readonly Brush PresentBrush = new SolidColorBrush(Color.FromRgb(0x16, 0xA3, 0x4A));
     private static readonly Brush AbsentBrush = new SolidColorBrush(Color.FromRgb(0xDC, 0x26, 0x26));
@@ -58,7 +59,7 @@ public partial class MainWindow : Window
         RssiText.Text = App.Detector.SmoothedRssi is { } rssi ? $"{rssi:F1} dBm" : "—";
         LastSeenText.Text = App.Detector.LastSample is { } last ? last.LocalDateTime.ToString("HH:mm:ss") : "—";
         ScannerText.Text = App.Scanner.StatusText;
-        LockEnabledText.Text = App.Settings.EnableAutoLock
+        LockEnabledText.Text = App.ConnectionProbe.IsRunning ? "蓝牙连接验证中，自动锁屏/解锁暂停" : App.Settings.EnableAutoLock
             ? (App.LockPaused ? "已暂停（托盘菜单可恢复）" : "启用")
             : "关闭";
 
@@ -285,6 +286,13 @@ public partial class MainWindow : Window
     {
         new CalibrationWindow { Owner = this }.ShowDialog();
         LoadSettingsIntoUi();
+    }
+
+    private void ConnectionProbeButton_Click(object sender, RoutedEventArgs e)
+    {
+        _connectionProbeWindow ??= new ConnectionProbeWindow { Owner = this };
+        _connectionProbeWindow.Show();
+        _connectionProbeWindow.Activate();
     }
 
     private void LockNowButton_Click(object sender, RoutedEventArgs e) => WorkStationLocker.TryLock();
