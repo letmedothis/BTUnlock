@@ -9,6 +9,7 @@ using MessageBox = System.Windows.MessageBox;
 using Brush = System.Windows.Media.Brush;
 using Color = System.Windows.Media.Color;
 using Point = System.Windows.Point;
+using SystemColors = System.Windows.SystemColors;
 
 namespace BTUnlock.Desktop;
 
