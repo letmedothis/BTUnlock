@@ -68,7 +68,7 @@ public partial class MainWindow : Window
             : "（未绑定）";
 
         TokenStatusText.Text = App.TokenStatus;
-        UnlockStatusText.Text = Core.CredentialStore.Exists() ? "状态：已录入密码" : "状态：未录入密码";
+        UnlockStatusText.Text = BuildUnlockStatusText();
 
         var previous = SeenList.SelectedItem as string;
         var seen = App.Scanner.SnapshotSeen();
@@ -80,6 +80,24 @@ public partial class MainWindow : Window
             SeenList.SelectedItem = previous;
 
         RedrawChart();
+    }
+
+    /// <summary>解锁状态行：凭据录入、熔断提示、令牌前置与锁屏来源。</summary>
+    private string BuildUnlockStatusText()
+    {
+        var parts = new List<string>();
+        if (!Core.CredentialStore.Exists()) parts.Add("未录入密码");
+        else parts.Add("已录入密码");
+        if (App.Settings.EnableUnlock && App.Settings.TokenSecretHex is null)
+            parts.Add("自动解锁需先配置滚动令牌");
+        parts.Add("锁定来源：" + App.LockState switch
+        {
+            LockState.AutoLocked => "自动（本程序）",
+            LockState.ManualLocked => "手动/其他",
+            LockState.Unlocked => "会话已解锁",
+            _ => "未知",
+        });
+        return "状态：" + string.Join(" · ", parts);
     }
 
     /// <summary>近 3 分钟 RSSI 折线 + 双阈值参考线（红=锁屏 绿=解锁）。</summary>

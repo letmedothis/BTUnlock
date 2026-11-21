@@ -24,6 +24,8 @@ public partial class App : Application
     private bool _lockPaused;
     private bool _pendingLockForFullscreen;
     private byte[]? _tokenSecret;
+    private readonly LockIntentJournal _lockJournal = new();
+    private SessionLockTracker? _lockTracker;
 
     private readonly object _historyGate = new();
     private readonly List<(DateTime Time, double Rssi)> _rssiHistory = new();
@@ -35,6 +37,7 @@ public partial class App : Application
     public bool LockPaused => _lockPaused;
     public BleScanner Scanner => _scanner;
     public ProximityDetector Detector => _detector;
+    public LockState LockState => _lockTracker?.State ?? LockState.Unknown;
     public BluetoothConnectionProbe ConnectionProbe { get; } = new();
 
     public string TokenStatus => _tokenSecret is null
@@ -57,6 +60,7 @@ public partial class App : Application
         Settings = _settingsStore.Load();
         _startHidden = e.Args.Contains("/tray", StringComparer.OrdinalIgnoreCase);
         LoadTokenSecret();
+        _lockTracker = new SessionLockTracker(_lockJournal, OnLockStateChanged);
         Log.Info($"启动 v{typeof(App).Assembly.GetName().Version}，绑定设备 {Settings.DeviceIdHex ?? "无"}，" +
                  $"令牌 {(Settings.TokenSecretHex is null ? "未启用" : "已启用")}，解锁 {(Settings.EnableUnlock ? "启用" : "关闭")}");
 
@@ -68,9 +72,11 @@ public partial class App : Application
         _detector.StateChanged += OnPresenceChanged;
         _scanner.Start();
 
-        // M3：解锁状态管道，供 LogonUI 里的凭据提供程序查询
+        // M3：解锁状态管道，供 LogonUI 里的凭据提供程序查询。
+        // M5：仅当锁屏来源是本程序（AutoLocked）时才放行——手动锁屏不得自动解锁。
         _unlockServer = new UnlockPipeServer(
             () => !ConnectionProbe.IsRunning && Settings.EnableUnlock &&
+                  _lockTracker is { State: LockState.AutoLocked } &&
                   Core.CredentialStore.TryLoad() is not null &&
                   _detector.State == PresenceState.Present,
             () =>
@@ -162,6 +168,11 @@ public partial class App : Application
         }
     }
 
+    private void OnLockStateChanged(LockState state)
+    {
+        Log.Info($"锁定状态 → {state}");
+    }
+
     private void OnPresenceChanged(PresenceState state)
     {
         Log.Info($"手机状态 → {state}");
@@ -179,12 +190,20 @@ public partial class App : Application
             return;
         }
         _pendingLockForFullscreen = false;
+        // M5：锁屏前记录意图，SessionLock 事件据此归因 AUTO_LOCKED / MANUAL_LOCKED
+        _lockJournal.Write();
         if (WorkStationLocker.TryLock()) Log.Info($"已锁屏（{reason}）");
+        else
+        {
+            _lockJournal.Clear();
+            Log.Warn($"锁屏请求失败（{reason}），已清除锁意图");
+        }
     }
 
     private void OnSecondElapsed()
     {
         _detector.EvaluateTimeout();
+        _lockTracker?.Tick(DateTime.UtcNow);
 
         // 全屏挂起的锁屏：退出全屏后补锁（仍要求状态为离开）
         if (_pendingLockForFullscreen && !_lockPaused &&
@@ -269,6 +288,7 @@ public partial class App : Application
         _exiting = true;
         Log.Info("退出");
         _unlockServer?.Dispose();
+        _lockTracker?.Dispose();
         _trayIcon?.Dispose();
         _scanner.Dispose();
         Shutdown();
