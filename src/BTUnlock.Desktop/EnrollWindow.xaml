@@ -7,9 +7,9 @@
         ResizeMode="NoResize">
     <StackPanel Margin="16">
         <TextBlock Text="工作原理与安全须知" FontSize="13" FontWeight="Bold" Margin="0,0,0,4"/>
-        <Border Background="#FFF7ED" CornerRadius="4" Padding="10" Margin="0,0,0,10">
+        <Border Background="#26F59E0B" CornerRadius="8" Padding="10" Margin="0,0,0,10">
             <TextBlock TextWrapping="Wrap" FontSize="11" LineHeight="17"
-                       Text="Windows 不存在官方解锁 API，「人来解锁」通过自研凭据提供程序提交你的 Windows 密码实现，因此必须录入一次。密码经机器级 DPAPI 加密后保存在 %ProgramData%\BTUnlock。请知悉：① 本机任意 SYSTEM 权限代码理论上可解密；② 仅建议个人自用电脑开启；③ 修改 Windows 密码后需重新录入；④ 微软在线账户可能不适用（本地账户/域账户已验证路径）。"/>
+                       Text="Windows 不存在官方解锁 API，「人来解锁」通过自研凭据提供程序提交你的 Windows 密码实现，因此必须录入一次。密码经 DPAPI 用户级加密后保存在 %ProgramData%\BTUnlock（仅录入你的账户可解）。请知悉：① 能以你的账户运行代码的本机程序仍可读取；② 仅建议个人自用电脑开启；③ 修改 Windows 密码后需重新录入；④ 微软在线账户可能不适用（实机验证是 G0 关卡）。"/>
         </Border>
 
         <TextBlock Text="用户名"/>

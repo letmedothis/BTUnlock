@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using BTUnlock.Desktop.Core;
 using BTUnlock.Protocol;
 using Application = System.Windows.Application;
@@ -17,21 +18,85 @@ public partial class MainWindow : Window
     private List<ulong> _seenIds = new();
     private ConnectionProbeWindow? _connectionProbeWindow;
 
-    private static readonly Brush PresentBrush = new SolidColorBrush(Color.FromRgb(0x16, 0xA3, 0x4A));
-    private static readonly Brush AbsentBrush = new SolidColorBrush(Color.FromRgb(0xDC, 0x26, 0x26));
-    private static readonly Brush UnknownBrush = new SolidColorBrush(Color.FromRgb(0x6B, 0x72, 0x80));
+    private static readonly Color PresentColor = Color.FromRgb(0x16, 0xA3, 0x4A);
+    private static readonly Color AbsentColor = Color.FromRgb(0xDC, 0x26, 0x26);
+    private static readonly Color IdleColor = Color.FromRgb(0x6B, 0x72, 0x80);
+    private static readonly Color PresentTint = Color.FromArgb(0x26, 0x16, 0xA3, 0x4A);
+    private static readonly Color AbsentTint = Color.FromArgb(0x26, 0xDC, 0x26, 0x26);
+    private static readonly Color IdleTint = Color.FromArgb(0x14, 0x6B, 0x72, 0x80);
+
+    // 可动画画刷：状态卡底色 / 状态文字与脉冲点共用，切换走 ColorAnimation（深浅色主题下半透明叠色都成立）
+    private readonly SolidColorBrush _cardBrush = new(IdleTint);
+    private readonly SolidColorBrush _stateBrush = new(IdleColor);
+    private PresenceState? _lastPresenceState;
+    private bool _pulseOn;
 
     public MainWindow()
     {
         InitializeComponent();
+        StatusCard.Background = _cardBrush;
+        StateText.Foreground = _stateBrush;
+        PulseDot.Fill = _stateBrush;
         var version = typeof(MainWindow).Assembly.GetName().Version;
         if (version is not null) Title += $"  v{version.ToString(3)}";
         SetWindowIconFromExe();
+        SourceInitialized += OnSourceInitialized;
+        Opacity = 0;
         Loaded += (_, _) =>
         {
+            AnimateWindowIn();
             LoadSettingsIntoUi();
             _suppressEvents = false;
         };
+    }
+
+    /// <summary>Mica 背板（22621+）；失败退回仅 DWM 圆角，再失败保持原生外观。</summary>
+    private void OnSourceInitialized(object? sender, EventArgs e)
+    {
+        if (!Core.Win11Fx.TryEnableBackdrop(this))
+            Core.Win11Fx.TryRoundCorners(this);
+    }
+
+    private void AnimateWindowIn()
+    {
+        BeginAnimation(OpacityProperty,
+            new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(240)) { EasingFunction = new QuadraticEase() });
+    }
+
+    private static DoubleAnimation MakePulse() => new(1, 1.45, TimeSpan.FromMilliseconds(900))
+    {
+        AutoReverse = true,
+        RepeatBehavior = RepeatBehavior.Forever,
+        EasingFunction = new SineEase(),
+    };
+
+    /// <summary>状态切换时过渡状态卡底色、状态文字与脉冲点（在场时圆点持续脉冲）。</summary>
+    private void AnimateStatusState(PresenceState state)
+    {
+        var (tint, text) = state switch
+        {
+            PresenceState.Present => (PresentTint, PresentColor),
+            PresenceState.Absent => (AbsentTint, AbsentColor),
+            _ => (IdleTint, IdleColor),
+        };
+        var duration = TimeSpan.FromMilliseconds(320);
+        _cardBrush.BeginAnimation(SolidColorBrush.ColorProperty,
+            new ColorAnimation(tint, duration) { EasingFunction = new QuadraticEase() });
+        _stateBrush.BeginAnimation(SolidColorBrush.ColorProperty,
+            new ColorAnimation(text, duration) { EasingFunction = new QuadraticEase() });
+
+        if (state == PresenceState.Present && !_pulseOn)
+        {
+            _pulseOn = true;
+            PulseScale.BeginAnimation(ScaleTransform.ScaleXProperty, MakePulse());
+            PulseScale.BeginAnimation(ScaleTransform.ScaleYProperty, MakePulse());
+        }
+        else if (state != PresenceState.Present && _pulseOn)
+        {
+            _pulseOn = false;
+            PulseScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            PulseScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        }
     }
 
     private static App App => (App)Application.Current;
@@ -41,20 +106,18 @@ public partial class MainWindow : Window
     {
         if (!IsLoaded) return;
 
-        var (stateBrush, stateText) = App.Detector.State switch
+        var state = App.Detector.State;
+        StateText.Text = state switch
         {
-            PresenceState.Present => (PresentBrush, "手机在场"),
-            PresenceState.Absent => (AbsentBrush, "手机离开"),
-            _ => (UnknownBrush, "等待信号"),
+            PresenceState.Present => "手机在场",
+            PresenceState.Absent => "手机离开",
+            _ => "等待信号",
         };
-        StateText.Foreground = stateBrush;
-        StateText.Text = stateText;
-        StatusCard.Background = App.Detector.State switch
+        if (state != _lastPresenceState)
         {
-            PresenceState.Present => new SolidColorBrush(Color.FromRgb(0xF0, 0xFD, 0xF4)),
-            PresenceState.Absent => new SolidColorBrush(Color.FromRgb(0xFE, 0xF2, 0xF2)),
-            _ => new SolidColorBrush(Color.FromRgb(0xF5, 0xF5, 0xF5)),
-        };
+            _lastPresenceState = state;
+            AnimateStatusState(state);
+        }
 
         RssiText.Text = App.Detector.SmoothedRssi is { } rssi ? $"{rssi:F1} dBm" : "—";
         LastSeenText.Text = App.Detector.LastSample is { } last ? last.LocalDateTime.ToString("HH:mm:ss") : "—";
@@ -140,7 +203,7 @@ public partial class MainWindow : Window
 
         var polyline = new System.Windows.Shapes.Polyline
         {
-            Stroke = new SolidColorBrush(Color.FromRgb(0x25, 0x63, 0xEB)),
+            Stroke = new SolidColorBrush(SystemColors.AccentColor), // 跟随系统强调色
             StrokeThickness = 1.5,
         };
         foreach (var (time, rssi) in data)

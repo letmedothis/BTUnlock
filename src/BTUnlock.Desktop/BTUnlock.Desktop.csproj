@@ -9,6 +9,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
+    <!-- ThemeMode（.NET 9+ Fluent 主题）在 XAML 生成代码里访问会报 WPF0001，整体抑制 -->
+    <NoWarn>$(NoWarn);WPF0001</NoWarn>
     <RootNamespace>BTUnlock.Desktop</RootNamespace>
     <AssemblyName>BTUnlock</AssemblyName>
     <!-- 本地构建占位版本号；正式版本由 CI 以 -p:Version=0.1.<run_number> 注入 -->

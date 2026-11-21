@@ -7,7 +7,7 @@
         ResizeMode="NoResize">
     <StackPanel Margin="16">
         <TextBlock x:Name="StepTitle" Text="第一步 · 工位采样" FontSize="15" FontWeight="Bold" Margin="0,0,0,6"/>
-        <TextBlock x:Name="StepDesc" TextWrapping="Wrap" Foreground="Gray" Margin="0,0,0,12"
+        <TextBlock x:Name="StepDesc" TextWrapping="Wrap" Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}" Margin="0,0,0,12"
                    Text="把手机带在身上，坐到你平时用电脑的正常位置，让手机保持原样（桌上/口袋），然后点「开始采样」。采样 8 秒，期间保持不动。"/>
         <ProgressBar x:Name="Progress" Height="18" Minimum="0" Maximum="100" Margin="0,0,0,12"/>
         <TextBlock x:Name="StepResult" TextWrapping="Wrap" Margin="0,0,0,0" FontSize="12"/>
