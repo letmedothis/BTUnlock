@@ -4,8 +4,7 @@
         Title="BTUnlock — 人走锁屏"
         Width="480" Height="760"
         WindowStartupLocation="CenterScreen"
-        ResizeMode="CanMinimize"
-        Background="Transparent">
+        ResizeMode="CanMinimize">
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="16,12,16,16">
 
