@@ -4,7 +4,8 @@
 > 决策（2026-11-21 用户确认）：**保留全 C# 技术栈**，吸收指导书的安全架构、状态机与验收要求，在现有代码上演进；不迁移 Rust/Electron。
 > 本文档是当前唯一路线图，取代此前 M1~M4 的里程碑叙事。开发约束见根目录 [AGENTS.md](../AGENTS.md)。
 >
-> **2026-11-21 执行记录**：M5、M6（含 M6.4 修订与 M6.6 熔断）、M8 已提交并经 CI 验证（Run 19 绿；Run 21 因 EnrollWindow 的 WPF/WinForms Application 二义性失败，Run 22 修复后全绿，Release v0.1.22）；M9 威胁模型已落地 [docs/09-threat-model.md](09-threat-model.md)。M7 评估结论见 §6。**G0 实机验证（§5）仍待用户执行。**
+> **2026-11-21 执行记录**：M5、M6（含 M6.4 修订与 M6.6 熔断）、M8 已提交并经 CI 验证（Run 19 绿；Run 21 因 EnrollWindow 的 WPF/WinForms Application 二义性失败，Run 22 修复后全绿，Release v0.1.22）；M9 威胁模型已落地 [docs/09-threat-model.md](09-threat-model.md)。M7 评估结论见 §6。
+> **二次迭代（同日，调研驱动的缺陷修复 + 界面现代化）**：修复校准采样跨线程竞态与 Done 态误触、管道连接/读取限时（防同机进程占死唯一实例，fail-closed）、`BleScanner` DataReader 逐帧泄漏、已锁定会话不重复锁屏（Run 23 绿）；界面启用官方 Fluent 主题 `ThemeMode=System`（深浅色跟随系统）、Mica 背板（DWM `SYSTEMBACKDROP`，旧系统静默降级）、状态卡脉冲与颜色过渡动效、RSSI 曲线改用系统强调色。**G0 实机验证（§5）仍待用户执行。**
 
 ## 1. 指导书的停/继续标准 → 本项目 G0 关卡
 
