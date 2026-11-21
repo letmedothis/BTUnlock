@@ -87,6 +87,7 @@ public partial class MainWindow : Window
     {
         var parts = new List<string>();
         if (!Core.CredentialStore.Exists()) parts.Add("未录入密码");
+        else if (App.Settings.UnlockSuspended) parts.Add("已熔断暂停：解锁连续失败，请重新录入密码");
         else parts.Add("已录入密码");
         if (App.Settings.EnableUnlock && App.Settings.TokenSecretHex is null)
             parts.Add("自动解锁需先配置滚动令牌");

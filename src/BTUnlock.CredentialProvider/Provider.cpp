@@ -152,6 +152,10 @@ DWORD WINAPI BTUnlockProvider::PollThreadProc(LPVOID self)
     bool last = false;
     while (!provider->_stop)
     {
+        // M6.6：先上报待发的解锁失败（管道 IO 在轮询线程做，不阻塞 LogonUI）
+        LONG pending = InterlockedExchange(&provider->_pendingFailureReport, 0);
+        if (pending > 0) ReportFailure(700, pending);
+
         PresenceInfo info;
         bool now = QueryPresence(700, info);
         if (now != last)
@@ -189,4 +193,18 @@ void BTUnlockProvider::FireCredentialsChanged()
         CpLog(L"firing CredentialsChanged");
         _events->CredentialsChanged(_adviseContext);
     }
+}
+
+void BTUnlockProvider::NotifyUnlockResult(long ntStatus)
+{
+    if (ntStatus == 0)
+    {
+        _failStreak = 0;
+        _suppressUntilTick = 0;
+        return;
+    }
+    LONG streak = InterlockedIncrement(&_failStreak);
+    InterlockedExchange(&_pendingFailureReport, streak);
+    _suppressUntilTick = GetTickCount64() + 60000; // 失败后 60 秒不自动提交，避免连环提交坏密码
+    CpLog(L"unlock failed: streak=%ld status=0x%08lX", streak, (unsigned long)ntStatus);
 }

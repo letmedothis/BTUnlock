@@ -31,46 +31,51 @@ std::string Base64Decode(const char* src, size_t len)
     return out;
 }
 
+// 连接管道（重试到 deadline）；失败返回 INVALID_HANDLE_VALUE。
+static HANDLE OpenPipe(DWORD timeoutMs)
+{
+    ULONGLONG deadline = GetTickCount64() + timeoutMs;
+    while (GetTickCount64() < deadline)
+    {
+        HANDLE pipe = CreateFileW(BTUNLOCK_PIPE_NAME, GENERIC_READ | GENERIC_WRITE, 0, nullptr,
+            OPEN_EXISTING, FILE_FLAG_OVERLAPPED, nullptr);
+        if (pipe != INVALID_HANDLE_VALUE) return pipe;
+        if (GetLastError() != ERROR_PIPE_BUSY && GetLastError() != ERROR_FILE_NOT_FOUND) return INVALID_HANDLE_VALUE;
+        Sleep(60);
+    }
+    return INVALID_HANDLE_VALUE;
+}
+
+// 单次重叠 IO + 事件超时。返回 true 表示完成且传输字节数 > 0。
+static bool IoWithTimeout(HANDLE pipe, HANDLE ev, bool write, void* buf, DWORD size, DWORD tmo)
+{
+    OVERLAPPED ov = {};
+    ov.hEvent = ev;
+    ResetEvent(ev);
+    BOOL ok = write ? WriteFile(pipe, buf, size, nullptr, &ov) : ReadFile(pipe, buf, size, nullptr, &ov);
+    if (!ok && GetLastError() != ERROR_IO_PENDING) return false;
+    if (WaitForSingleObject(ev, tmo) != WAIT_OBJECT_0) { CancelIo(pipe); return false; }
+    DWORD done = 0;
+    return GetOverlappedResult(pipe, &ov, &done, FALSE) && done > 0;
+}
+
 // 带超时的管道问答。CreateFile 对忙管道立即失败，靠重试 + 总超时控制。
 bool QueryPresence(DWORD timeoutMs, PresenceInfo& out)
 {
-    ULONGLONG deadline = GetTickCount64() + timeoutMs;
-
-    HANDLE pipe = INVALID_HANDLE_VALUE;
-    while (GetTickCount64() < deadline)
-    {
-        pipe = CreateFileW(BTUNLOCK_PIPE_NAME, GENERIC_READ | GENERIC_WRITE, 0, nullptr,
-            OPEN_EXISTING, FILE_FLAG_OVERLAPPED, nullptr);
-        if (pipe != INVALID_HANDLE_VALUE) break;
-        if (GetLastError() != ERROR_PIPE_BUSY && GetLastError() != ERROR_FILE_NOT_FOUND) return false;
-        Sleep(60);
-    }
+    HANDLE pipe = OpenPipe(timeoutMs);
     if (pipe == INVALID_HANDLE_VALUE) return false;
 
-    // 统一用重叠 IO + 事件实现读写超时
     HANDLE ev = CreateEventW(nullptr, TRUE, FALSE, nullptr);
     if (!ev) { CloseHandle(pipe); return false; }
 
-    auto io = [&](bool write, void* buf, DWORD size, DWORD tmo) -> bool
-    {
-        OVERLAPPED ov = {};
-        ov.hEvent = ev;
-        ResetEvent(ev);
-        BOOL ok = write ? WriteFile(pipe, buf, size, nullptr, &ov) : ReadFile(pipe, buf, size, nullptr, &ov);
-        if (!ok && GetLastError() != ERROR_IO_PENDING) return false;
-        if (WaitForSingleObject(ev, tmo) != WAIT_OBJECT_0) { CancelIo(pipe); return false; }
-        DWORD done = 0;
-        return GetOverlappedResult(pipe, &ov, &done, FALSE) && done > 0;
-    };
-
     char req[] = "Q\n";
     char resp[1024] = {};
-    bool sent = io(true, req, 2, 800);
+    bool sent = IoWithTimeout(pipe, ev, true, req, 2, 800);
     size_t got = 0;
     bool timedOut = false;
     while (sent && got < sizeof(resp) - 1)
     {
-        if (!io(false, resp + got, (DWORD)(sizeof(resp) - 1 - got), 800)) { timedOut = true; break; }
+        if (!IoWithTimeout(pipe, ev, false, resp + got, (DWORD)(sizeof(resp) - 1 - got), 800)) { timedOut = true; break; }
         // 逐次读到 '\n' 为止
         bool done = false;
         for (size_t i = got; i < got + strnlen_s(resp + got, sizeof(resp) - got); i++)
@@ -109,4 +114,27 @@ bool QueryPresence(DWORD timeoutMs, PresenceInfo& out)
     out.Domain = std::move(wDomain);
     out.Password = std::move(pw);
     return true;
+}
+
+bool ReportFailure(DWORD timeoutMs, int streak)
+{
+    HANDLE pipe = OpenPipe(timeoutMs);
+    if (pipe == INVALID_HANDLE_VALUE) return false;
+
+    HANDLE ev = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    if (!ev) { CloseHandle(pipe); return false; }
+
+    char req[32] = {};
+    sprintf_s(req, sizeof(req), "F;%d\n", streak);
+    bool sent = IoWithTimeout(pipe, ev, true, req, (DWORD)strlen(req), 600);
+    if (sent)
+    {
+        // 应答仅作确认；对端旧版本不回 K 时读超时，忽略
+        char ack[8] = {};
+        IoWithTimeout(pipe, ev, false, ack, sizeof(ack) - 1, 600);
+    }
+
+    CloseHandle(ev);
+    CloseHandle(pipe);
+    return sent;
 }

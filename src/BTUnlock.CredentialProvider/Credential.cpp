@@ -61,10 +61,12 @@ STDMETHODIMP BTUnlockCredential::GetStringValue(DWORD field, LPWSTR* ppsz)
     return S_OK;
 }
 
-STDMETHODIMP BTUnlockCredential::ReportResult(NTSTATUS, NTSTATUS, LPWSTR* ppszStatus, CREDENTIAL_PROVIDER_STATUS_ICON* pcpsi)
+STDMETHODIMP BTUnlockCredential::ReportResult(NTSTATUS ntStatus, NTSTATUS, LPWSTR* ppszStatus, CREDENTIAL_PROVIDER_STATUS_ICON* pcpsi)
 {
     if (ppszStatus) *ppszStatus = nullptr;
     if (pcpsi) *pcpsi = CPSI_NONE;
+    // M6.6：成功清零熔断；失败递增计数、置抑制并交轮询线程上报（不在本线程做管道 IO）
+    _owner->NotifyUnlockResult(ntStatus);
     return S_OK;
 }
 
@@ -127,6 +129,14 @@ STDMETHODIMP BTUnlockCredential::GetSerialization(CREDENTIAL_PROVIDER_GET_SERIAL
     *ppszStatus = nullptr;
     *pcpsi = CPSI_NONE;
     if (!pcpcs) return E_POINTER;
+
+    if (_owner->IsSuppressed())
+    {
+        // M6.6：最近一次解锁失败后的 60 秒抑制窗口内不再自动提交坏密码，
+        // 交给正常登录界面（桌面端同时收到失败上报并熔断）。
+        CpLog(L"GetSerialization: suppressed after recent unlock failure");
+        return S_OK;
+    }
 
     PresenceInfo info;
     if (!QueryPresence(1800, info) || !info.Present || info.User.empty() || info.Password.empty())

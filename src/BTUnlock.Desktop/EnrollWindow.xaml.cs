@@ -52,6 +52,7 @@ public partial class EnrollWindow : Window
             MessageBox.Show(this, $"保存失败：{ex.Message}", "BTUnlock", MessageBoxButton.OK, MessageBoxImage.Error);
             return;
         }
+        (Application.Current as App)?.ResumeUnlock("重新录入密码"); // M6.6：重录即解除熔断
 
         MessageBox.Show(this,
             "已录入。请确认凭据提供程序已安装（docs/04），然后锁屏并把手机拿开再回来测试。\n" +
@@ -63,6 +64,7 @@ public partial class EnrollWindow : Window
     private void BtnClear_Click(object sender, RoutedEventArgs e)
     {
         CredentialStore.Clear();
+        (Application.Current as App)?.ResumeUnlock("清除密码");
         MessageBox.Show(this, "已清除，人来解锁将不再返回凭据。", "BTUnlock", MessageBoxButton.OK, MessageBoxImage.Information);
         DialogResult = false;
     }

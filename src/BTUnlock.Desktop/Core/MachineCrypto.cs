@@ -3,9 +3,10 @@ using System.Runtime.InteropServices;
 namespace BTUnlock.Desktop.Core;
 
 /// <summary>
-/// 机器级 DPAPI 加解密（CryptProtectData + CRYPTPROTECT_LOCAL_MACHINE）。
-/// 机器级 = 本机任意上下文（含 SYSTEM，即 LogonUI 里的凭据提供程序）可解——
-/// 这正是解锁链路所需；代价是本机任意本地代码也能解，威胁模型见 docs/04。
+/// DPAPI 加解密（CryptProtectData，手写 P/Invoke，免 NuGet 依赖）。
+/// 机器级（CRYPTPROTECT_LOCAL_MACHINE）= 本机任意上下文可解——解锁链路所需；
+/// 用户级 = 仅执行保护的同一 Windows 用户（其配置文件加载时）可解——
+/// 用于滚动令牌密钥等只需本进程读取的秘密（M6/M8）。threat model 见 docs/04 与 docs/09。
 /// entropy 仅作混淆，不是安全边界。
 /// </summary>
 internal static class MachineCrypto
@@ -33,14 +34,24 @@ internal static class MachineCrypto
     [DllImport("kernel32.dll")]
     private static extern IntPtr LocalFree(IntPtr hMem);
 
-    public static byte[] Protect(byte[] plain)
+    public static byte[] Protect(byte[] plain) => ProtectCore(plain, CRYPTPROTECT_LOCAL_MACHINE);
+
+    public static byte[] Unprotect(byte[] cipher) => UnprotectCore(cipher, CRYPTPROTECT_LOCAL_MACHINE);
+
+    /// <summary>用户级 DPAPI：只有执行保护的同一 Windows 用户可解。</summary>
+    public static byte[] ProtectCurrentUser(byte[] plain) => ProtectCore(plain, 0);
+
+    /// <summary>用户级 DPAPI 解密；上下文不匹配（其他用户/配置文件未加载）会抛异常。</summary>
+    public static byte[] UnprotectCurrentUser(byte[] cipher) => UnprotectCore(cipher, 0);
+
+    private static byte[] ProtectCore(byte[] plain, int flags)
     {
         var input = BlobFrom(plain);
         var entropy = BlobFrom(Entropy);
         var output = default(DATA_BLOB);
         try
         {
-            if (!CryptProtectData(ref input, "BTUnlock", entropy, IntPtr.Zero, IntPtr.Zero, CRYPTPROTECT_LOCAL_MACHINE, ref output))
+            if (!CryptProtectData(ref input, "BTUnlock", entropy, IntPtr.Zero, IntPtr.Zero, flags, ref output))
                 throw new InvalidOperationException($"CryptProtectData 失败：{Marshal.GetLastWin32Error()}");
             return BytesFrom(output);
         }
@@ -50,14 +61,14 @@ internal static class MachineCrypto
         }
     }
 
-    public static byte[] Unprotect(byte[] cipher)
+    private static byte[] UnprotectCore(byte[] cipher, int flags)
     {
         var input = BlobFrom(cipher);
         var entropy = BlobFrom(Entropy);
         var output = default(DATA_BLOB);
         try
         {
-            if (!CryptUnprotectData(ref input, IntPtr.Zero, entropy, IntPtr.Zero, IntPtr.Zero, CRYPTPROTECT_LOCAL_MACHINE, ref output))
+            if (!CryptUnprotectData(ref input, IntPtr.Zero, entropy, IntPtr.Zero, IntPtr.Zero, flags, ref output))
                 throw new InvalidOperationException($"CryptUnprotectData 失败：{Marshal.GetLastWin32Error()}");
             return BytesFrom(output);
         }

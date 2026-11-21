@@ -24,6 +24,7 @@ public partial class App : Application
     private bool _lockPaused;
     private bool _pendingLockForFullscreen;
     private byte[]? _tokenSecret;
+    private long _lastTokenOkTicks;
     private readonly LockIntentJournal _lockJournal = new();
     private SessionLockTracker? _lockTracker;
 
@@ -31,6 +32,9 @@ public partial class App : Application
     private readonly List<(DateTime Time, double Rssi)> _rssiHistory = new();
     private long _tokenOkCount;
     private long _tokenFailCount;
+
+    /// <summary>M6.6：解锁失败熔断阈值（Windows 连续报错密码校验失败 N 次后暂停自动解锁）。</summary>
+    private const int UnlockFailureSuspendThreshold = 3;
 
     public AppSettings Settings { get; private set; } = null!;
     public bool IsExiting => _exiting;
@@ -74,8 +78,10 @@ public partial class App : Application
 
         // M3：解锁状态管道，供 LogonUI 里的凭据提供程序查询。
         // M5：仅当锁屏来源是本程序（AutoLocked）时才放行——手动锁屏不得自动解锁。
+        // M6：滚动令牌前置（fail-closed）+ 失败熔断（fail-closed）。
         _unlockServer = new UnlockPipeServer(
-            () => !ConnectionProbe.IsRunning && Settings.EnableUnlock &&
+            () => !ConnectionProbe.IsRunning && Settings.EnableUnlock && !Settings.UnlockSuspended &&
+                  _tokenSecret is not null && TokenFresh() &&
                   _lockTracker is { State: LockState.AutoLocked } &&
                   Core.CredentialStore.TryLoad() is not null &&
                   _detector.State == PresenceState.Present,
@@ -86,7 +92,8 @@ public partial class App : Application
                 var password = Core.CredentialStore.TryGetPassword(enrolled);
                 if (password is null) return null;
                 return $"{enrolled.User};{enrolled.Domain};{Convert.ToBase64String(System.Text.Encoding.Unicode.GetBytes(password))}";
-            });
+            },
+            OnUnlockFailureReported);
         _unlockServer.Start();
 
         _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
@@ -156,6 +163,7 @@ public partial class App : Application
                 return;
             }
             Interlocked.Increment(ref _tokenOkCount);
+            Volatile.Write(ref _lastTokenOkTicks, DateTime.UtcNow.Ticks);
         }
 
         _detector.Feed(observation.Rssi);
@@ -166,6 +174,37 @@ public partial class App : Application
             var firstValid = _rssiHistory.FindIndex(p => p.Time >= cutoff);
             if (firstValid > 0) _rssiHistory.RemoveRange(0, firstValid);
         }
+    }
+
+    /// <summary>近 30 秒内存在通过滚动令牌校验的采样（M6.2：解锁前置）。</summary>
+    private bool TokenFresh() =>
+        _tokenSecret is not null &&
+        DateTime.UtcNow.Ticks - Volatile.Read(ref _lastTokenOkTicks) <= TimeSpan.FromSeconds(30).Ticks;
+
+    /// <summary>M6.6：CP 报告解锁失败（同一轮连续第 streak 次，来自管道线程）。</summary>
+    private void OnUnlockFailureReported(int streak)
+    {
+        Log.Warn($"CP 报告解锁失败（连续第 {streak} 次）");
+        if (streak < UnlockFailureSuspendThreshold || Settings.UnlockSuspended) return;
+        Dispatcher.InvokeAsync(() =>
+        {
+            if (Settings.UnlockSuspended) return;
+            Settings.UnlockSuspended = true;
+            SaveSettings();
+            Log.Warn("解锁连续失败，已熔断暂停自动解锁；重新录入密码后恢复");
+            _trayIcon?.ShowBalloonTip(10000, "BTUnlock 自动解锁已暂停",
+                "Windows 报告账户密码校验连续失败。手动登录后，请在主界面「录入 / 管理密码…」重新录入以恢复。",
+                Forms.ToolTipIcon.Warning);
+        });
+    }
+
+    /// <summary>重新录入/清除密码后调用：解除熔断。</summary>
+    public void ResumeUnlock(string reason)
+    {
+        if (!Settings.UnlockSuspended) return;
+        Settings.UnlockSuspended = false;
+        SaveSettings();
+        Log.Info($"自动解锁熔断解除：{reason}");
     }
 
     private void OnLockStateChanged(LockState state)

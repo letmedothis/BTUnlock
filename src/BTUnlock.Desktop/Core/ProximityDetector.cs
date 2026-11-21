@@ -70,6 +70,12 @@ public sealed class ProximityDetector
                 DateTime.Now - last.LocalDateTime >= TimeSpan.FromSeconds(_config.MissingTimeoutSeconds) &&
                 State != PresenceState.Absent)
             {
+                // M6：丢失超时后清空窗口——绝不沿用旧平滑 RSSI 继续判定（旧值很强会
+                // 在超时后把状态翻回在场，导致误解锁）。恢复在场必须以新采样开始。
+                _window.Clear();
+                SmoothedRssi = null;
+                _lockCandidateSince = null;
+                _unlockCandidateSince = null;
                 SetState(PresenceState.Absent);
             }
             Evaluate(DateTime.Now);

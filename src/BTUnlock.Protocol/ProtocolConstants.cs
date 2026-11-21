@@ -24,6 +24,11 @@ public static class ProtocolConstants
     /// <summary>v2 负载：设备 ID + 时间戳计数器 + HMAC 截断校验（抗抓包重放，解锁前提）。</summary>
     public const byte Version2 = 0x02;
 
-    /// <summary>滚动令牌：PC 端接受的时间戳新鲜度窗口（秒）。手机端每 10 秒刷新广播。</summary>
-    public const int TokenFreshnessSeconds = 45;
+    /// <summary>
+    /// 滚动令牌：PC 端接受的时间戳新鲜度窗口（秒）。手机端每 10 秒重建广播。
+    /// M6 由 45 收紧到 20：抓包重放一条旧帧最多维持约 20 秒假在场。
+    /// 窗口须覆盖两端时钟偏差 + 广播重建间隔；实测过紧会误丢正常帧（现象：在场/离开反复），
+    /// 届时回调整值并同步两端文档。
+    /// </summary>
+    public const int TokenFreshnessSeconds = 20;
 }

@@ -9,7 +9,9 @@ namespace BTUnlock.Desktop.Core;
 /// <summary>
 /// 命名管道 \\.\pipe\btunlock\presence 的服务端，供 LogonUI 里的凭据提供程序查询：
 ///   请求 "Q\n" → "A\n"（不可解锁）或 "P;user;domain;base64(UTF-16LE 密码)\n"
-/// 仅当「启用解锁 && 已录入凭据 && 检测状态为在场」时返回 P。
+///   请求 "F;N\n" → "K\n"（CP 上报解锁失败，连续第 N 次；M6.6 熔断依据）
+/// 仅当「启用解锁 && 未熔断 && 已配置令牌且新鲜 && 锁屏来源为本程序 && 已录入凭据
+/// && 检测状态为在场」时返回 P（各条件由 canUnlock 闭包决定）。
 /// </summary>
 public sealed class UnlockPipeServer : IDisposable
 {
@@ -17,13 +19,15 @@ public sealed class UnlockPipeServer : IDisposable
 
     private readonly Func<bool> _canUnlock;
     private readonly Func<string?> _secretPayload; // "user;domain;base64"，不可用时 null
+    private readonly Action<int>? _onUnlockFailure; // 参数 = CP 报告的连续失败次数
     private Thread? _thread;
     private volatile bool _stop;
 
-    public UnlockPipeServer(Func<bool> canUnlock, Func<string?> secretPayload)
+    public UnlockPipeServer(Func<bool> canUnlock, Func<string?> secretPayload, Action<int>? onUnlockFailure = null)
     {
         _canUnlock = canUnlock;
         _secretPayload = secretPayload;
+        _onUnlockFailure = onUnlockFailure;
     }
 
     public void Start()
@@ -70,6 +74,16 @@ public sealed class UnlockPipeServer : IDisposable
                     var response = payload is not null ? $"P;{payload}\n" : "A\n";
                     var bytes = Encoding.UTF8.GetBytes(response);
                     pipe.Write(bytes, 0, bytes.Length);
+                    pipe.Flush();
+                }
+                else if (line is not null && line.StartsWith("F;", StringComparison.Ordinal))
+                {
+                    // M6.6：CP 上报解锁失败（连续第 N 次），应答 K 确认已收到
+                    var streak = int.TryParse(line.AsSpan(2), out var n) && n > 0 ? n : 1;
+                    try { _onUnlockFailure?.Invoke(streak); }
+                    catch { /* 回调异常不影响管道服务 */ }
+                    var ack = Encoding.UTF8.GetBytes("K\n");
+                    pipe.Write(ack, 0, ack.Length);
                     pipe.Flush();
                 }
             }

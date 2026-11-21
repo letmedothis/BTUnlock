@@ -30,6 +30,11 @@ public:
 
     const wchar_t* GetUserSid() const { return _sid.c_str(); }
 
+    // M6.6：解锁结果回填。成功清零熔断；失败递增计数、置 60 秒抑制并挂待上报标志
+    //（由轮询线程通过 ReportFailure 送到桌面端，桌面端连续 ≥3 次熔断）。
+    void NotifyUnlockResult(long ntStatus);
+    bool IsSuppressed() const { return GetTickCount64() < _suppressUntilTick; }
+
 private:
     static DWORD WINAPI PollThreadProc(LPVOID self);
     void StartPollThread();
@@ -46,6 +51,10 @@ private:
     UINT_PTR _adviseContext = 0;
     HANDLE _thread = nullptr;
     volatile bool _stop = false;
+
+    volatile LONG _failStreak = 0;               // 连续解锁失败次数（ReportResult 成功清零）
+    volatile LONG _pendingFailureReport = 0;     // 待上报的连续失败数（轮询线程取走后清零）
+    volatile ULONGLONG _suppressUntilTick = 0;   // 失败后抑制自动提交的截止时刻
 
     class BTUnlockCredential* _credential = nullptr; // 唯一 tile（对 LogonUI 暴露，被其 AddRef）
 };
