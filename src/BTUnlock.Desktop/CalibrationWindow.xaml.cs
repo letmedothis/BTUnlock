@@ -19,6 +19,7 @@ public partial class CalibrationWindow : Window
     private Step _step = Step.Near;
     private readonly List<short> _nearSamples = new();
     private readonly List<short> _farSamples = new();
+    private readonly object _sampleGate = new();
     private DispatcherTimer? _timer;
     private int _elapsed;
     private List<short> _current = new();
@@ -36,6 +37,12 @@ public partial class CalibrationWindow : Window
         if (_timer is not null)
         {
             StopSampling();
+            return;
+        }
+
+        if (_step == Step.Done)
+        {
+            Close();
             return;
         }
 
@@ -60,8 +67,9 @@ public partial class CalibrationWindow : Window
 
     private void OnAdvert(AdvertObservation observation)
     {
+        // 事件在扫描线程上触发，_current 同时被 UI 线程读取——加锁
         if (App.Settings.DeviceId is { } id && observation.DeviceId == id)
-            _current.Add(observation.Rssi);
+            lock (_sampleGate) _current.Add(observation.Rssi);
     }
 
     private void OnTick(ulong boundId)
@@ -71,17 +79,19 @@ public partial class CalibrationWindow : Window
         if (_elapsed < SampleSeconds * 1000) return;
         StopSampling();
 
-        var average = TrimmedMean(_current);
-        if (_current.Count < 8 || double.IsNaN(average))
+        List<short> snapshot;
+        lock (_sampleGate) snapshot = _current.ToList();
+        var average = TrimmedMean(snapshot);
+        if (snapshot.Count < 8 || double.IsNaN(average))
         {
-            StepResult.Text = $"采样失败：只收到 {_current.Count} 帧（需 ≥8）。确认手机正在广播后重试。";
+            StepResult.Text = $"采样失败：只收到 {snapshot.Count} 帧（需 ≥8）。确认手机正在广播后重试。";
             ResetButton();
             return;
         }
 
         if (_step == Step.Near)
         {
-            StepResult.Text = $"工位均值 {average:F1} dBm（{_current.Count} 帧）。\n\n接下来：拿着手机走到平时「离开」的位置（如门口），到位后再点「开始采样」。";
+            StepResult.Text = $"工位均值 {average:F1} dBm（{snapshot.Count} 帧）。\n\n接下来：拿着手机走到平时「离开」的位置（如门口），到位后再点「开始采样」。";
             _step = Step.Far;
             StepTitle.Text = "第二步 · 离开位置采样";
             StepDesc.Text = "拿着手机走到你希望触发锁屏的距离（例如走出房门的走廊），站定后点「开始采样」。采样 8 秒。";

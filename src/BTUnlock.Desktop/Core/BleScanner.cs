@@ -66,7 +66,10 @@ public sealed class BleScanner : IDisposable
             if (length < AdvertPayload.V1Length) continue;
 
             var bytes = new byte[length];
-            DataReader.FromBuffer(md.Data).ReadBytes(bytes);
+            using (var dataReader = DataReader.FromBuffer(md.Data))
+            {
+                dataReader.ReadBytes(bytes);
+            }
             if (!AdvertPayload.TryParse(bytes, out var payload)) continue;
 
             var observation = new AdvertObservation(payload.DeviceId, args.RawSignalStrengthInDBm,

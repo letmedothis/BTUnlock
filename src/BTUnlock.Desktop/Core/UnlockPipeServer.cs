@@ -66,8 +66,17 @@ public sealed class UnlockPipeServer : IDisposable
 
             try
             {
+                // 连接与读取均限时：同机失控/恶意进程占住唯一管道实例时，
+                // 宁可本次查询失败也不能挂死 CP 的轮询（fail-closed，指导书 §6.2）
+                var connected = false;
+                try { connected = pipe.WaitForConnectionAsync().Wait(3000); }
+                catch { connected = false; }
+                if (!connected || _stop) throw new TimeoutException("等待管道连接超时");
+
                 using var reader = new StreamReader(pipe, Encoding.UTF8, leaveOpen: true);
-                var line = reader.ReadLine();
+                var readTask = reader.ReadLineAsync();
+                if (!readTask.Wait(2000)) throw new TimeoutException("等待管道请求超时");
+                var line = readTask.Result;
                 if (line == "Q")
                 {
                     var payload = _canUnlock() ? _secretPayload() : null;

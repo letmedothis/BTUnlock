@@ -222,6 +222,8 @@ public partial class App : Application
     private void TryLockNow(string reason)
     {
         if (ConnectionProbe.IsRunning) return;
+        // 会话已在锁定状态（上次锁屏后未再解锁）时不重复锁屏，也不写新锁意图
+        if (_lockTracker is { State: LockState.AutoLocked or LockState.ManualLocked }) return;
         if (FullscreenDetector.IsForegroundFullscreen())
         {
             if (!_pendingLockForFullscreen) Log.Warn($"触发锁屏（{reason}）但前台全屏，挂起等待退出全屏");
